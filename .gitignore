@@ -1,0 +1,10 @@
+*.lisp~
+*.*~
+*.xfasl
+*.64xfasl
+*.ofasl
+*.*ufasl
+.finderinfo
+.DS_Store
+/**/reference/
+/**/reference-pages/
