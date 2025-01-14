@@ -125,6 +125,111 @@
                       (map-func-internal (cdr list1) (cdr list2) (cdr list3)))))))
       (map-func-internal list1 list2 list3)))
 
+(cl:defun map-andv (fn list)
+  (cond ((null list) T)
+        (T (reduce #'andv (mapcar fn list)))))
+
+(cl:defun map2andv (fn list1 list2)
+  (cond ((null list1) T)
+        ((null list2) T)
+        (T (reduce #'andv (mapcar fn list1 list2)))))
+
+(cl:defun map3andv (fn list1 list2 list3)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        (T (reduce #'andv (mapcar fn list1 list2 list3)))))
+
+(cl:defun map4andv (fn list1 list2 list3 list4)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        ((null list4) T)
+        (T (reduce #'andv (mapcar fn list1 list2 list3 list4)))))
+
+(cl:defun map5andv (fn list1 list2 list3 list4 list5)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        ((null list4) T)
+        ((null list5) T)
+        (T (reduce #'andv (mapcar fn list1 list2 list3 list4 list5)))))
+
+(cl:defun map-orv (fn list)
+  (cond ((null list) T)
+        (T (reduce #'orv (mapcar fn list)))))
+
+(cl:defun map2orv (fn list1 list2)
+  (cond ((null list1) T)
+        ((null list2) T)
+        (T (reduce #'orv (mapcar fn list1 list2)))))
+
+(cl:defun map3orv (fn list1 list2 list3)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        (T (reduce #'orv (mapcar fn list1 list2 list3)))))
+
+(cl:defun map4orv (fn list1 list2 list3 list4)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        ((null list4) T)
+        (T (reduce #'orv (mapcar fn list1 list2 list3 list4)))))
+
+(cl:defun map5orv (fn list1 list2 list3 list4 list5)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        ((null list4) T)
+        ((null list5) T)
+        (T (apply #'orv (mapcar fn list1 list2 list3 list4 list5)))))
+
+(cl:defun maplist-andv (fn list)
+  (cond ((null list) T)
+        (T (reduce #'andv (maplist fn list)))))
+
+(cl:defun maplist2andv (fn list1 list2)
+  (cond ((null list1) T)
+        ((null list2) T)
+        (T (apply #'andv (maplist fn list1 list2)))))
+
+(cl:defun maplist3andv (fn list1 list2 list3)
+  :icon 147
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        (T (reduce #'andv (maplist fn list1 list2 list3)))))
+
+(cl:defun maplist4andv (fn list1 list2 list3 list4)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        ((null list4) T)
+        (T (reduce #'andv (maplist fn list1 list2 list3 list4)))))
+
+(cl:defun maplist-orv (fn list)
+  (cond ((null list) T)
+        (T (apply #'orv (maplist fn list)))))
+
+(cl:defun maplist2orv (fn list1 list2)
+  (cond ((null list1) T)
+        ((null list2) T)
+        (T (apply #'orv (maplist fn list1 list2)))))
+
+(cl:defun maplist3orv (fn list1 list2 list3)
+  (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        (T (reduce #'orv (maplist fn list1 list2 list3)))))
+
+(cl:defun maplist4orv (fn list1 list2 list3 list4)
+   (cond ((null list1) T)
+        ((null list2) T)
+        ((null list3) T)
+        ((null list4) T)
+        (T (reduce #'orv (maplist fn list1 list2 list3 list4)))))
+
 (cl:defun list-depth (list)
   (let ((depth 0))
     (labels
@@ -175,7 +280,7 @@
                      (list-structure-equal-internal (cdr list1) (cdr list2)))))))
       (list-structure-equal-internal list1 list2))))
 
-(cl:defun map-by-level (fn tree &key level-max)
+(cl:defun map-by-level (fn tree &key level-max)  ;; iffy - delete
   "Recursively applies fn to list elements (see 'map-func'). map-by-level accepts a function with two inputs - the first input is the list-element from the 'tree' input being processed. The second input indicates the 'depth' of that element within the list. The function counts from 1; elements of a simple list that does not contain any other list will be labelled level 1."
   (labels
       ((map-func-internal (fn tree level level-max)
@@ -353,169 +458,13 @@
 (cl:defun list%v (xs value) (listXv #'om%v xs value))
 
 
-;;;; ?LIST MAX, MIN, AND, OR
+;;;; ?LIST MAX, MIN
 (cl:defun list-maxv (xs) (apply #'ommaxv xs))
 (cl:defun list-minv (xs) (apply #'omminv xs))
-(cl:defun list-andv (xs) (apply #'omandv xs))
-(cl:defun list-orv (xs) (apply #'omorv xs))
 
+(cl:defun ?any2comb (fn list) (reduce #'orv (map2comb fn list)))
 
-
-;;;; MAP?functions
-(cl:defun map-andv (fn list)
-  (cond ((null list) T)
-        (T (reduce #'andv (mapcar fn list)))))
-
-(cl:defun map2andv (fn list1 list2)
-  (cond ((null list1) T)
-        ((null list2) T)
-        (T (reduce #'andv (mapcar fn list1 list2)))))
-
-(cl:defun map3andv (fn list1 list2 list3)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        (T (reduce #'andv (mapcar fn list1 list2 list3)))))
-
-(cl:defun map4andv (fn list1 list2 list3 list4)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((null list4) T)
-        (T (reduce #'andv (mapcar fn list1 list2 list3 list4)))))
-
-(cl:defun map5andv (fn list1 list2 list3 list4 list5)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((null list4) T)
-        ((null list5) T)
-        (T (reduce #'andv (mapcar fn list1 list2 list3 list4 list5)))))
-
-(cl:defun map-orv (fn list)
-  (cond ((null list) T)
-        (T (reduce #'orv (mapcar fn list)))))
-
-(cl:defun map2orv (fn list1 list2)
-  (cond ((null list1) T)
-        ((null list2) T)
-        (T (reduce #'orv (mapcar fn list1 list2)))))
-
-(cl:defun map3orv (fn list1 list2 list3)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        (T (reduce #'orv (mapcar fn list1 list2 list3)))))
-
-(cl:defun map4orv (fn list1 list2 list3 list4)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((null list4) T)
-        (T (reduce #'orv (mapcar fn list1 list2 list3 list4)))))
-
-(cl:defun map5orv (fn list1 list2 list3 list4 list5)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((null list4) T)
-        ((null list5) T)
-        (T (apply #'orv (mapcar fn list1 list2 list3 list4 list5)))))
-
-(cl:defun maplist-andv (fn list)
-  (cond ((null list) T)
-        ((> (length list) 2048)
-         (reduce #'omandv
-                 (maplist fn list)))
-        (t
-         (apply #'omandv
-                (maplist fn list)))))
-
-(cl:defun maplist2andv (fn list1 list2)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((> (min (length list1) 
-                 (length list2)) 2048)
-         (reduce #'omandv
-                 (maplist fn list1 list2)))
-        (t
-         (apply #'omandv
-                (maplist fn list1 list2)))))
-
-(cl:defun maplist3andv (fn list1 list2 list3)
-  :icon 147
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((> (min (length list1) 
-                 (length list2) 
-                 (length list3)) 2048)
-         (reduce #'omandv
-                 (maplist fn list1 list2 list3)))
-        (t
-         (apply #'omandv
-                (maplist fn list1 list2 list3)))))
-
-(cl:defun maplist4andv (fn list1 list2 list3 list4)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((null list4) T)
-        ((> (min (length list1) 
-                 (length list2) 
-                 (length list3)
-                 (length list4)) 2048)
-         (reduce #'omandv
-                 (maplist fn list1 list2 list3 list4)))
-        (t
-         (apply #'omandv
-                (maplist fn list1 list2 list3 list4)))))
-
-(cl:defun maplist-orv (fn list)
-  (cond ((null list) T)
-        ((> (length list) 2048)
-         (reduce #'omorv
-                 (maplist fn list)))
-        (t
-         (apply #'omorv
-                (maplist fn list)))))
-
-(cl:defun maplist2orv (fn list1 list2)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((> (length list1) 2048)
-         (reduce #'omorv
-                 (maplist fn list1 list2)))
-        (t
-         (apply #'omorv
-                (maplist fn list1 list2)))))
-
-(cl:defun maplist3orv (fn list1 list2 list3)
-  (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((> (length list1) 2048)
-         (reduce #'omorv
-                 (maplist fn list1 list2 list3)))
-        (t
-         (apply #'omorv
-                (maplist fn list1 list2 list3)))))
-
-(cl:defun maplist4orv (fn list1 list2 list3 list4)
-   (cond ((null list1) T)
-        ((null list2) T)
-        ((null list3) T)
-        ((null list4) T)
-        ((> (length list1) 2048)
-         (reduce #'omorv
-                 (maplist fn list1 list2 list3 list4)))
-        (t
-         (apply #'omorv
-                (maplist fn list1 list2 list3 list4)))))
-
-(cl:defun ?any2comb (fn list) (apply #'omorv (map2comb fn list)))
-
-(cl:defun ?all2comb (fn list) (apply #'omandv (map2comb fn list)))
+(cl:defun ?all2comb (fn list) (reduce #'andv (map2comb fn list)))
 
 (cl:defun map2comb (fn list)
   (let ((cart (mat-trans (list2comb list))))
@@ -558,7 +507,7 @@
   
 
 
-
+;;; ?TEMPLATE functions (see visual.lisp)
 (defvar *symincr* nil) ; counter
 (cl:defun symincr (xs &key reset-counter)
   (if reset-counter (setf *symincr* nil))
@@ -712,6 +661,10 @@
                       terminate-test-param
                       order-param
                       force-function-param))))))
+
+
+
+;; FIND-ANY and FIND-ALL to be renamed
 
 (defun find-any2 (x &key force-function cost-fun terminate-test order) ; renamed 'find-any'
   (one-value 
@@ -1973,15 +1926,15 @@ This is useful for creating patterns to be unified with other structures. "
                                   ((null xs) nil)
                                   ((listp r)
                                    (reduce
-                                    #'omorv
+                                    #'orv
                                     (mapcar
                                      #'(lambda (p)
-                                         (apply
-                                          #'omorv
+                                         (reduce
+                                          #'orv
                                           (mapcar
                                            #'(lambda (r1)
-                                               (apply
-                                                #'omandv
+                                               (reduce
+                                                #'andv
                                                 (mapcar
                                                  #'(lambda (x y) (maprule x y))
                                                  p
@@ -2053,7 +2006,7 @@ This is useful for creating patterns to be unified with other structures. "
                                        (cond (existing-var (cadr existing-var))
                                              (t 
                                               (let ((var (apply 
-                                                          #'omorv
+                                                          #'orv
                                                           (mapcar
                                                            #'(lambda (term) (maprule xs term))
                                                            (cdr-assoc r or-sym-domain-assoc)))))
@@ -2441,15 +2394,15 @@ This is useful for creating patterns to be unified with other structures. "
         (t
          (car (reverse list)))))
 
-(cl:defun omandv (&rest xs)
+(cl:defun omandv (&rest xs) ; deleted
   (apply #'vregister
          (append
           (list
            #'(lambda () (apply #'andv (flatt xs)))
            #'omandv)
           xs)))
-;(cl:defun omorv (&rest xs) :icon 219 (apply #'screamer:orv (flatt xs)))
-(cl:defun omorv (&rest xs)
+
+(cl:defun omorv (&rest xs) ; deleted
   (or (apply #'lookup-solver-key 
              (append (list #'omorv) xs))
       (apply #'register-solver-key 
@@ -2625,13 +2578,13 @@ This is useful for creating patterns to be unified with other structures. "
                            y)))
 
 (cl:defun omeqlv (xs ys)
-  (apply #'omandv (map2func #'(lambda (x y) (omequalv x y)) xs ys)))
+  (apply #'andv (map2func #'(lambda (x y) (omequalv x y)) xs ys)))
 
 (cl:defun om!eqlv (xs ys)
-  (apply #'omandv (map2func #'(lambda (x y) (omnotv (omequalv x y))) xs ys)))
+  (apply #'andv (map2func #'(lambda (x y) (omnotv (omequalv x y))) xs ys)))
 
 (cl:defun lists=v (xs ys)
-  (apply #'omandv (map2func #'(lambda (x y)
+  (apply #'andv (map2func #'(lambda (x y)
                                 (cond
                                  ((and (null x) (null y)) T)
                                  ((null x) nil)
@@ -2642,7 +2595,7 @@ This is useful for creating patterns to be unified with other structures. "
 
 
 (cl:defun lists/=v (xs ys)
-  (apply #'omandv (map2func #'(lambda (x y)
+  (apply #'andv (map2func #'(lambda (x y)
                                 (cond
                                  ((and (null x) (null y)) nil)
                                  ((null x) T)
@@ -2791,7 +2744,7 @@ This is useful for creating patterns to be unified with other structures. "
       ((member-of-sequencev-internal (sequence)
          (cond ((null sequence) T)
                ((cdr sequence)
-                (omorv
+                (orv
                  (member-of-sequencev-internal (list (car sequence)))
                  (member-of-sequencev-internal (cdr sequence))))
                (T (omequalv x (car sequence))))))
@@ -2816,7 +2769,7 @@ This is useful for creating patterns to be unified with other structures. "
   (labels ((member-of-number-sequencev-internal (sequence)
              (cond ((null sequence) T)
                    ((cdr sequence)
-                    (omorv
+                    (orv
                      (member-of-number-sequencev-internal (list (car sequence)))
                      (member-of-number-sequencev-internal (cdr sequence))))
                    (T (om=v x (car sequence))))))
@@ -2841,7 +2794,7 @@ This is useful for creating patterns to be unified with other structures. "
   (labels ((not-member-of-sequencev-internal (sequence)
              (cond ((null sequence) T)
                    ((cdr sequence)
-                    (omandv
+                    (andv
                      (not-member-of-sequencev-internal (list (car sequence)))
                      (not-member-of-sequencev-internal (cdr sequence))))
                    (T (omnotv (omequalv x (car sequence)))))))
@@ -2856,7 +2809,7 @@ This is useful for creating patterns to be unified with other structures. "
   (labels ((not-member-of-number-sequencev-internal (sequence)
              (cond ((null sequence) T)
                    ((cdr sequence)
-                    (omandv
+                    (andv
                      (not-member-of-number-sequencev-internal (list (car sequence)))
                      (not-member-of-number-sequencev-internal (cdr sequence))))
                    (T (om/=v x (car sequence))))))
@@ -2882,7 +2835,7 @@ This is useful for creating patterns to be unified with other structures. "
       ((all-members-of (xs)
          (cond ((null xs) T)
                ((cdr xs)
-                (omandv
+                (andv
                  (all-members-of (list (car xs)))
                  (all-members-of (cdr xs))))
                (T (member-of-sequencev (car xs) sequence)))))
@@ -2894,7 +2847,7 @@ This is useful for creating patterns to be unified with other structures. "
       ((all-not-members-of (xs)
          (cond ((null xs) T)
                ((cdr xs)
-                (omandv
+                (andv
                  (all-not-members-of (list (car xs)))
                  (all-not-members-of (cdr xs))))
                (T (not-member-of-sequencev (car xs) sequence)))))
@@ -2906,7 +2859,7 @@ This is useful for creating patterns to be unified with other structures. "
       ((all-members-of (xs sequence)
          (cond ((null xs) T)
                ((cdr xs)
-                (omandv
+                (andv
                  (all-members-of (list (car xs)) sequence)
                  (all-members-of (cdr xs) sequence)))
                (T (member-of-number-sequencev (car xs) sequence)))))
@@ -2929,7 +2882,7 @@ This is useful for creating patterns to be unified with other structures. "
       ((all-not-members-of (xs sequence)
          (cond ((null xs) T)
                ((cdr xs)
-                (omandv
+                (andv
                  (all-not-members-of (list (car xs)) sequence)
                  (all-not-members-of (cdr xs) sequence)))
                (T (not-member-of-number-sequencev (car xs) sequence)))))
@@ -3032,9 +2985,9 @@ This is useful for creating patterns to be unified with other structures. "
                      ((null entries) nil)
                      (T (let ((entry (car entries)) 
                               (keyeq (omequalv key (caar entries))))
-                          (omorv 
-                           (omandv keyeq (ommemberv var (cdr entry)))
-                           (omandv (omnotv keyeq) (xlat key (cdr entries)))))))))
+                          (orv 
+                           (andv keyeq (ommemberv var (cdr entry)))
+                           (andv (omnotv keyeq) (xlat key (cdr entries)))))))))
                (assert! (xlat k map))
                var))))
       (map-func #'lookxl keys))))
@@ -3060,8 +3013,8 @@ This is useful for creating patterns to be unified with other structures. "
                        ((null entries) nil)
                        (T (let ((entry (car entries)) 
                                 (key= (om=v key (caar entries))))
-                            (omorv 
-                             (omandv key= (items-inv var (cdr entry) :numeric T)); (ommemberv var (cdr entry)))
+                            (orv 
+                             (andv key= (items-inv var (cdr entry) :numeric T)); (ommemberv var (cdr entry)))
                              (xlat key (cdr entries))))))))
                  (assert! (xlat k map))
                  var))))

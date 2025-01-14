@@ -191,6 +191,8 @@
     Nil
     Nil
     (t2l::enable-variable-cache-map
-     t2l::disable-variable-cache-map)
+     t2l::disable-variable-cache-map
+     paradigm--?%-restricts-bounds
+     paradigm--?%-calls-native-function)
     Nil)
    ))
