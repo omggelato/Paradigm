@@ -156,14 +156,25 @@ directly nested in a call to ASSERT!, are similarly transformed.
                                 
         (cond
          (fail-after-count
-          (n-values 
-           fail-after-count
-           (?solution-internal x 
-                               :force-function force-function
-                               :cost-fun cost-fun
-                               :terminate-test terminate-test
-                               :order order 
-                               :onmatch onmatch)))
+          (cond
+           (save-matches-to-solver-output
+            (n-values 
+                fail-after-count
+              (?solution-internal x 
+                                  :force-function force-function
+                                  :cost-fun cost-fun
+                                  :terminate-test terminate-test
+                                  :order order 
+                                  :onmatch onmatch)))
+           (T
+            (ith-value
+                fail-after-count
+              (?solution-internal x 
+                                  :force-function force-function
+                                  :cost-fun cost-fun
+                                  :terminate-test terminate-test
+                                  :order order 
+                                  :onmatch onmatch)))))
          (T (?solution-internal x 
                                 :force-function force-function
                                 :cost-fun cost-fun
@@ -239,8 +250,7 @@ Documentation from https://nikodemus.github.io/screamer/
                                     (if (cdr template) (cdr template) nil) 
                                     choice-list)))
 
-   ((and (car template)
-         (listp (car template)))
+   ((consp (car template)) ; ??
     (append (list (car template))
             (apply-nondeterministic #'multiple-choice-list 
                                     (if (cdr template) (cdr template) nil) 
@@ -257,21 +267,24 @@ Documentation from https://nikodemus.github.io/screamer/
                                 :junk-allowed t))
     (let ((thischoice (elt choice-list (1- (parse-integer (subseq (symbol-name (car template)) 
                                                                   0 (1- (length (symbol-name (car template))))))))))
-      (append (list (multiple-choice-list-element thischoice T))
-              (apply-nondeterministic #'multiple-choice-list (cdr template) choice-list))))
+      (append 
+       (list (multiple-choice-list-element thischoice T))
+       (apply-nondeterministic #'multiple-choice-list (cdr template) choice-list))))
    
    ;; append symbol from template
    ((not (numberp (car template)))
-    (append (list (car template)) 
-            (apply-nondeterministic #'multiple-choice-list 
-                                    (if (cdr template) (cdr template) nil) 
-                                    choice-list)))
+    (append 
+     (list (car template))
+     (apply-nondeterministic #'multiple-choice-list 
+                             (if (cdr template) (cdr template) nil) 
+                             choice-list)))
 
    ;; not randomized
    (T
     (let ((thischoice (elt choice-list (1- (car template)))))
-      (append (list (multiple-choice-list-element thischoice nil))
-              (apply-nondeterministic #'multiple-choice-list (cdr template) choice-list))))))
+      (append 
+       (list (multiple-choice-list-element thischoice nil))
+       (apply-nondeterministic #'multiple-choice-list (cdr template) choice-list))))))
 
 
 
@@ -1136,6 +1149,28 @@ rule-definition function inputs
 (defmethod! remove-consecutive-duplicates (list &key test)
   :icon 235
   (t2l::remove-consecutive-duplicates list :test test))
+
+(defmethod! mc->midi ((self note))
+   (if (null self) (error "No NOTE object to process! (null)"))
+   (if (null (midic self)) (error "No notes to process in object. Use the editor to add a note (~A)" self))
+  (labels
+      ((convert (midic) 
+         (if (= 0 (mod midic 100)) 
+             (multiple-value-bind (f r) (floor (/ midic 100)) 
+               f)
+           (/ midic 100))))
+    (convert (midic self))))
+
+(defmethod! mc->midi ((self chord-seq))
+  (if (null self) (error "No NOTE object to process! (null)"))
+  (if (null (lmidic self)) (error "No notes to process in object. Use the editor to add a note (~A)" self))
+  (labels
+      ((convert (midic) 
+         (if (= 0 (mod midic 100)) 
+             (multiple-value-bind (f r) (floor (/ midic 100)) 
+               f)
+           (/ midic 100))))
+    (map-func #'convert (flatt (lmidic self)))))
 
 ;;; FLATTEN-SEQC
 (defmethod! flatten-seqc (list)

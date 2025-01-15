@@ -159,15 +159,16 @@
    ("sequences" 
     Nil
     Nil
-    (flatten-seqc
-     mat-trans
+    (mc->midi
+     flatten-seqc
      group-by-motion-type
+     mat-trans
+     multiple-choice-list
      fuseseqc
      eventsms
      sequence->poly
      sequence->voices
-     timepoints->voice-obj
-     bt-group-list)
+     timepoints->voice-obj)
     Nil)
 
    ("utility" 
