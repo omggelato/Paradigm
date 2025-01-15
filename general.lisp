@@ -192,7 +192,7 @@
 (cl:defun maplist2andv (fn list1 list2)
   (cond ((null list1) T)
         ((null list2) T)
-        (T (apply #'andv (maplist fn list1 list2)))))
+        (T (reduce #'andv (maplist fn list1 list2)))))
 
 (cl:defun maplist3andv (fn list1 list2 list3)
   :icon 147
@@ -210,12 +210,12 @@
 
 (cl:defun maplist-orv (fn list)
   (cond ((null list) T)
-        (T (apply #'orv (maplist fn list)))))
+        (T (reduce #'orv (maplist fn list)))))
 
 (cl:defun maplist2orv (fn list1 list2)
   (cond ((null list1) T)
         ((null list2) T)
-        (T (apply #'orv (maplist fn list1 list2)))))
+        (T (reduce #'orv (maplist fn list1 list2)))))
 
 (cl:defun maplist3orv (fn list1 list2 list3)
   (cond ((null list1) T)
@@ -2421,20 +2421,13 @@ This is useful for creating patterns to be unified with other structures. "
   (map-andv #'(lambda (x) (notv (memberv x sequence))) (flatt list)))
 
 (cl:defun items-inv (list sequence &key numeric fast-crosscheck)
-;  (print (format nil "ITEMS-IN ~A IN ~A?" list sequence))
   (labels
       ((all-members-of (xs)
          (cond ((null xs) nil)
-               ((not (listp xs))
-                (all-members-of (list xs)))
-               ((or fast-crosscheck numeric) 
-                (map-andv #'iimemberof xs))
-               (T 
-                (ommembersofv xs sequence))))
-       (iimemberof (x)
-         (cond ((and numeric (null x)) nil)
-               (numeric (map-orv #'(lambda (y) (=v x y)) sequence))
-               (T (map-orv #'(lambda (y) (equalv x y)) sequence)))))
+               ((not (listp xs)) (all-members-of (list xs)))
+               (numeric (map-andv #'=any xs))
+               (T (ommembersofv xs sequence))))
+       (=any (x) (map-orv #'(lambda (y) (=v x y)) sequence)))
     (all-members-of list)))
 
 (cl:defun items!inv (list sequence &key numeric fast-crosscheck)
@@ -2442,15 +2435,10 @@ This is useful for creating patterns to be unified with other structures. "
   (labels
       ((all!members-of (xs)
          (cond ((null xs) nil)
-               ((not (listp xs))
-                (all!members-of (list xs)))
-               ((or fast-crosscheck 
-                    numeric) (map-andv #'ii!memberof xs))
-               (T (om!membersofv xs sequence))))
-       (ii!memberof (x)
-         (cond ((and numeric (null x)) nil)
-               (numeric (map-andv #'(lambda (y) (om/=v x y)) sequence))
-               (T (map-andv #'(lambda (y) (omnotv (omequalv x y))) sequence)))))
+               ((not (listp xs)) (all!members-of (list xs)))
+               (numeric (map-andv #'/=any xs))
+               (T (ommembersofv xs sequence))))
+       (/=any (x) (map-andv #'(lambda (y) (/=v x y)) sequence)))
     (all!members-of list)))
 
 (cl:defun an-integer-member-ofv (xs)

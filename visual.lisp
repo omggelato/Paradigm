@@ -375,8 +375,8 @@ This is useful for creating patterns to be unified with other structures. "
     (assert!! (?equal var x))
     var))
 (defmethod! ?a-memberof (sequence) (screamer:a-member-ofv sequence))
-(defmethod! ?variables-in (x) (screamer::variables-in x))
-
+(defmethod! ?variables-in (x) (remove-duplicates (remove-if-not #'(lambda (y) (screamer::variable? y)) (remove nil (flatt x)))))
+(defmethod! ?xs-in (input) (remove-duplicates (remove-if-not #'(lambda (y) (or (numberp y) (screamer::variable? y))) (remove nil (flatt input)))))
 
 ;;;; rules
 (defmethod! ?integerp (x) (screamer:integerpv x))
@@ -454,7 +454,8 @@ This is useful for creating patterns to be unified with other structures. "
   :icon 147
   :doc "map?and is equivalent to (apply #'andv (mapcar fn list)) where fn yields either true, false (nil), or a constraint variable representing true-or-false."
   (t2l::map-andv fn list))
-  
+
+;; delete  
 (defmethod! map2?and (fn list1 list2)
   :icon 147
   :doc "map?and is equivalent to (apply #'andv (mapcar fn list)) where fn yields either true, false (nil), or a constraint variable representing true-or-false."
@@ -479,7 +480,8 @@ This is useful for creating patterns to be unified with other structures. "
   :icon 147
   :doc "map?or is equivalent to (apply #'orv (mapcar fn list)) where fn yields either true, false (nil), or a constraint variable representing true-or-false."
   (t2l::map-orv fn list))
-  
+
+;; delete
 (defmethod! map2?or (fn list1 list2)
   :icon 147
   :doc "map?or is equivalent to (apply #'orv (mapcar fn list)) where fn yields either true, false (nil), or a constraint variable representing true-or-false."
@@ -579,7 +581,7 @@ This is useful for creating patterns to be unified with other structures. "
 (defmethod! ?listmax (xs) :icon 209 (apply #'?max xs))
 (defmethod! ?lists= (xs ys) (t2l::lists=v xs ys))
 (defmethod! ?lists/= (xs ys) (t2l::lists/=v xs ys))
-(cl:defun list-compare-to-value (fn xs value) (map?and #'(lambda (x) (funcall fn x value)) xs))
+(cl:defun list-compare-to-value (fn xs value) (map?and #'(lambda (x) (funcall fn x value)) (remove nil (flatt xs))))
 (defmethod! ?list< (xs value) (list-compare-to-value #'?< xs value))
 (defmethod! ?list<= (xs value) (list-compare-to-value #'?<= xs value))
 (defmethod! ?list> (xs value) (list-compare-to-value #'?> xs value))
@@ -711,12 +713,11 @@ This is useful for creating patterns to be unified with other structures. "
     (labels
         ((%12 (x) (?% x 12))
          (transp?se (xs level) (map-func #'%12 (?list+ xs level))))
-         (let* ((sequence input);   (map-func #'(lambda (x) (?an-integer-between 0 127)) input :ignore-null-input T))
-                (sequence%12 (mapcar #'%12 (all?variables-in sequence))))
+      (let* ((sequence input)
+                (sequence%12 (mapcar #'%12 (?xs-in sequence))))
            ;(?and
             ;(?equal input sequence)
-            (map?or #'(lambda (ys) (?items-in sequence%12 (transp?se ys fundamental) :numeric T)) xs)
-            )))))
+            (map?or #'(lambda (ys) (?items-in sequence%12 (transp?se ys fundamental) :numeric T)) xs))))))
     
 
 
