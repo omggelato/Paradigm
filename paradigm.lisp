@@ -21,11 +21,14 @@
   (load-om-lib-without-menu (find-library "paradigm"))
   (initWorkSpace *current-workSpace*))
 (in-package :OPENMUSIC)
-(require-library "OM-Backtrack")
+(t2l::write*om-stream* "~% ====================~%")
+(require-library "OM-Backtrack_1230")
+(t2l::write*om-stream* "~% ====================~%")
 (mapc #'(lambda (file) 
-          (t2l::write*om-stream* "Loading '~A' module... " (pathname-name file))
+          (t2l::write*om-stream* "~%Loading '~A' module... " (pathname-name file))
           (compile&load file t)
-          (t2l::write*om-stream* "OK~%")) t2l::*paradigm--library-files*)
+          (t2l::write*om-stream* "OK ")) t2l::*paradigm--library-files*)
+(t2l::write*om-stream* "~% (~A" (t2l::format-timestamp (get-universal-time)))
 (fill-library 
  '(("solver" 
     Nil 
@@ -41,6 +44,7 @@
      solver-output
      next-solver-input
      next-solver-output
+     prev-solver-output
      reset-solver-output
      reset-solver-registry) 
     Nil)

@@ -127,25 +127,25 @@
 
 (cl:defun map-andv (fn list)
   (cond ((null list) T)
-        (T (reduce #'andv (mapcar fn list)))))
+        (T (apply #'andv (mapcar fn list)))))
 
 (cl:defun map2andv (fn list1 list2)
   (cond ((null list1) T)
         ((null list2) T)
-        (T (reduce #'andv (mapcar fn list1 list2)))))
+        (T (apply #'andv (mapcar fn list1 list2)))))
 
 (cl:defun map3andv (fn list1 list2 list3)
   (cond ((null list1) T)
         ((null list2) T)
         ((null list3) T)
-        (T (reduce #'andv (mapcar fn list1 list2 list3)))))
+        (T (apply #'andv (mapcar fn list1 list2 list3)))))
 
 (cl:defun map4andv (fn list1 list2 list3 list4)
   (cond ((null list1) T)
         ((null list2) T)
         ((null list3) T)
         ((null list4) T)
-        (T (reduce #'andv (mapcar fn list1 list2 list3 list4)))))
+        (T (apply #'andv (mapcar fn list1 list2 list3 list4)))))
 
 (cl:defun map5andv (fn list1 list2 list3 list4 list5)
   (cond ((null list1) T)
@@ -153,16 +153,16 @@
         ((null list3) T)
         ((null list4) T)
         ((null list5) T)
-        (T (reduce #'andv (mapcar fn list1 list2 list3 list4 list5)))))
+        (T (apply #'andv (mapcar fn list1 list2 list3 list4 list5)))))
 
 (cl:defun map-orv (fn list)
   (cond ((null list) T)
-        (T (reduce #'orv (mapcar fn list)))))
+        (T (apply #'orv (mapcar fn list)))))
 
 (cl:defun map2orv (fn list1 list2)
   (cond ((null list1) T)
         ((null list2) T)
-        (T (reduce #'orv (mapcar fn list1 list2)))))
+        (T (apply #'orv (mapcar fn list1 list2)))))
 
 (cl:defun map3orv (fn list1 list2 list3)
   (cond ((null list1) T)
@@ -250,21 +250,16 @@
     (labels
         ((list-structure-equal-internal (list1 list2)
          (cond ((and (null list1)
-                     (null list2)) 
-                T)
+                     (null list2)) T)
 
                ((or (null list1)
-                    (null list2))
-                (return-from list-structure-equal nil))
+                    (null list2)) (return-from list-structure-equal nil))
 
                ((and (not (consp list1))
-                     (not (consp list2)))
-                T)
-               
+                     (not (consp list2))) T)               
                
                ((or (not (consp list1))
-                    (not (consp list2)))
-                (return-from list-structure-equal nil))
+                    (not (consp list2))) (return-from list-structure-equal nil))
 
                ((and (consp (car list1))
                      (consp (car list2)))
@@ -272,12 +267,10 @@
                      (list-structure-equal-internal (cdr list1) (cdr list2))))
 
                ((or (consp (car list1))
-                    (consp (car list2)))
-                (return-from list-structure-equal nil))
+                    (consp (car list2))) (return-from list-structure-equal nil))
 
-               (T
-                (and (funcall test (car list1) (car list2))
-                     (list-structure-equal-internal (cdr list1) (cdr list2)))))))
+               (T (and (funcall test (car list1) (car list2))
+                       (list-structure-equal-internal (cdr list1) (cdr list2)))))))
       (list-structure-equal-internal list1 list2))))
 
 (cl:defun map-by-level (fn tree &key level-max)  ;; iffy - delete
@@ -456,7 +449,6 @@
 (cl:defun list*v (xs value) (listXv #'om*v xs value))
 (cl:defun list/v (xs value) (listXv #'om/v xs value))
 (cl:defun list%v (xs value) (listXv #'om%v xs value))
-
 
 ;;;; ?LIST MAX, MIN
 (cl:defun list-maxv (xs) (apply #'ommaxv xs))
@@ -691,9 +683,9 @@
                    (format nil "~2,'0d:~2,'0d:~2,'0d ~d/~2,'0d: "
                            hour minute second month date)
                    (apply #'format (append (list nil message) arguments))))))
-(defvar *solver-status-message-timestamp* (get-internal-real-time))
+(defvar *solver-status-message-timestamp* (get-universal-time))
 (cl:defun print-solver-status-message (message &rest arguments)
-  (let ((internal-real-time (get-internal-real-time)))
+  (let ((internal-real-time (get-universal-time)))
     (if (> (- internal-real-time
               *solver-status-message-timestamp*) 1000)
         (progn
@@ -1140,28 +1132,27 @@ This is useful for creating patterns to be unified with other structures. "
     value)
    (T t2l::*findall2-values*)))
 
-
+(defvar *next-solver-output-cursor* -1)
 
 (defun next-solver-output (&optional catalog)
   (global
    (cond
-    ((null t2l::*findall2-values*) nil)
-    ((not (listp t2l::*findall2-values*)) 
-     (let ((value t2l::*findall2-values*))
-       (setf t2l::*findall2-values* nil)
-       value))
+    ((null *findall2-values*) 
+     (setf *next-solver-output-cursor* -1)
+     nil)
     (T
-     (if (cdr t2l::*findall2-values*)
-         (let ((next (car t2l::*findall2-values*)))
-           (setf t2l::*findall2-values* (cdr t2l::*findall2-values*))
-           (format om-lisp::*om-stream* 
-                   "NEXT-SOLVER-OUTPUT: ~A symbols, ~A other matches~%" 
-                   (cond ((null next) 0)
-                         ((listp next) (length (flatt next)))
-                         (T 1))
-                   (length t2l::*findall2-values*))
-           next)
-       (setf t2l::*findall2-values* '()))))))
+     (setf *next-solver-output-cursor* (min (1+ *next-solver-output-cursor*) (1- (length *findall2-values*))))
+     (elt *findall2-values* *next-solver-output-cursor*)))))
+
+(defun prev-solver-output (&optional catalog)
+  (global
+   (cond
+    ((null *findall2-values*) 
+     (setf *next-solver-output-cursor* -1)
+     nil)
+    (T
+     (setf *next-solver-output-cursor* (max (1- *next-solver-output-cursor*) 0))
+     (elt *findall2-values* *next-solver-output-cursor*)))))
 
 (cl:defun reset-solver-input (&optional xs) 
   (cond (xs 
@@ -2211,14 +2202,13 @@ This is useful for creating patterns to be unified with other structures. "
                  xs)))
 
 (cl:defun flatt (list &optional level)
-  
   (cond
    ((null list) nil)
    ((atom list) list)
    (T
     (let ((flat nil)) 
       (map-func #'(lambda (x) (push x flat)) list :level-max level) 
-      (reverse flat)))))
+      (nreverse flat)))))
 
 
 
@@ -2420,15 +2410,26 @@ This is useful for creating patterns to be unified with other structures. "
 (cl:defun om!membersofv (list sequence)
   (map-andv #'(lambda (x) (notv (memberv x sequence))) (flatt list)))
 
+
+
 (cl:defun items-inv (list sequence &key numeric fast-crosscheck)
-  (labels
-      ((all-members-of (xs)
-         (cond ((null xs) nil)
-               ((not (listp xs)) (all-members-of (list xs)))
-               (numeric (map-andv #'=any xs))
-               (T (ommembersofv xs sequence))))
-       (=any (x) (map-orv #'(lambda (y) (=v x y)) sequence)))
-    (all-members-of list)))
+  (let ((sequence (reverse sequence)))
+    (labels
+        ((numeric? (x) (and x (or (numberp x) (s::variable? x))))
+         (number-or-symbol? (x) (or x (s::variable? x)))
+         (member? (x) (memberv x sequence))
+         (each=any (xs)
+           (cond 
+            ((null xs) T)
+            (T (andv (item-in (car xs))
+                     (each=any (cdr xs))))))
+         (item-in (x) (apply #'orv (mapcar #'(lambda (y) (=v x y)) sequence))))
+      (cond
+       ((null list) (memberv nil sequence))
+       (numeric
+        (each=any (remove-duplicates (remove-if-not #'numeric? (flatt (list list))))))
+       (T
+        (apply #'andv (mapcar #'member? (remove-duplicates (remove-if-not #'number-or-symbol? (flatt (list list)))))))))))
 
 (cl:defun items!inv (list sequence &key numeric fast-crosscheck)
   :icon 235
@@ -2466,8 +2467,9 @@ This is useful for creating patterns to be unified with other structures. "
 (defvar *paradigm--modulo-restricts-bounds*
   #'(lambda (n d) 
       (let ((x (-v n (*v d (an-integerv)))))
-        (assert! (>=v x 0))
+        (assert! (integerpv x))
         (assert! (<v x d))
+        (assert! (>=v x 0))
         x)))
 (setf *paradigm--modulo-function* *paradigm--modulo-restricts-bounds*)
 (cl:defun %v (n d) (funcall *paradigm--modulo-function* n d))
@@ -2708,7 +2710,16 @@ This is useful for creating patterns to be unified with other structures. "
                        (all-different x (cdr xs))
                        (all-different (car xs) (cdr xs))))))
     (all-different x xs)))
-
+(cl:defun distinct!eq (x &rest xs)
+  ;; from 'Screamer' library documentation (see screams.lisp)
+  ;; Functionally the same as (apply #'/=v list), but faster.
+  (labels ((all-different (x xs)
+             (if (null xs)
+                 t
+                 (andv (notv (equalv x (car xs)))
+                       (all-different x (cdr xs))
+                       (all-different (car xs) (cdr xs))))))
+    (all-different x xs)))
 (cl:defun distinct-values-countv (list)
   (count-trues-in-listv
    (mapcar #'(lambda (xs)

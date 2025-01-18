@@ -1,4 +1,81 @@
-(in-package :om)
+(in-package :OPENMUSIC)
+
+(defmethod! ?template (template &key min max map make-integer make-real)
+  :doc "Copies an aggregate object, replacing any symbol beginning with a question mark with a newly created variable. 
+
+If the same symbol appears more than once in x, only one variable is created for that symbol, the same variable replacing any occurrences of that symbol. Thus (template '(a b (?c d ?e) ?e)) has the same effect as: 
+            (LET ((?C (MAKE-VARIABLE))
+                  (?E (MAKE-VARIABLE)))
+              (LIST 'A 'B (LIST C 'D E) E)).
+
+This is useful for creating patterns to be unified with other structures. "
+  :numouts 2
+  (t2l::om-template template :map map :min min :max max :map map :make-integer make-integer :make-real make-real))
+
+;;;; generators
+(defmethod! make?variable (&optional name) (if name (screamer:make-variable name) (screamer:make-variable)))
+(defmethod! make?variables (list &key min max integers-mode floats-mode symbol-mode) :icon 215 :doc "" (t2l::make-screamer-variables list :min min :max max :integers-mode integers-mode :floats-mode floats-mode :symbol-mode symbol-mode))
+(defmethod! ?a-number (&optional name) (if name (screamer:a-numberv name) (screamer:a-numberv)))
+(defmethod! ?a-real (&optional name) (if name (screamer:a-realv name) (screamer:a-realv)))
+(defmethod! ?a-real-above (low &optional name) (if name (screamer:a-real-abovev low name) (screamer:a-real-abovev low)))
+(defmethod! ?a-real-below (high &optional name) (if name (screamer:a-real-belowv high name) (screamer:a-real-belowv high)))
+(defmethod! ?a-real-between (low high &optional name) (if name (screamer:a-real-betweenv low high name) (screamer:a-real-betweenv low high)))
+(defmethod! ?an-integer (&optional name) (if name (screamer:an-integerv name) (screamer:an-integerv)))
+(defmethod! ?an-integer-above (low &optional name) (if name (screamer:an-integer-abovev low name) (screamer:an-integer-abovev low)))
+(defmethod! ?an-integer-below (high &optional name) (if name (screamer:an-integer-belowv high name) (screamer:an-integer-belowv high)))
+(defmethod! ?an-integer-between (low high &optional name) (if name (screamer:an-integer-betweenv low high name) (screamer:an-integer-betweenv low high)))
+(defmethod! ?an-integer= (x &optional name)
+  (let ((var (if name 
+                 (screamer:an-integerv name)
+               (screamer:an-integerv))))
+    (assert!! (?equal var x))
+    var))
+(defmethod! ?a-real= (x &optional name)
+  (let ((var (if name 
+                 (screamer:a-realv name)
+               (screamer:a-realv))))
+    (assert!! (?equal var x))
+    var))
+(defmethod! ?a-memberof (sequence) (screamer:a-member-ofv sequence))
+(defmethod! ?variables-in (x) (remove-duplicates (remove-if-not #'(lambda (y) (screamer::variable? y)) (remove nil (flatt x)))))
+(defmethod! ?xs-in (input) (remove-duplicates (remove-if-not #'(lambda (y) (or (numberp y) (screamer::variable? y))) (remove nil (flatt input)))))
+
+;;;; rules
+(defmethod! ?integerp (x) (screamer:integerpv x))
+(defmethod! ?realp (x) (screamer:numberpv x))
+(defmethod! ?numberp (x) (screamer:numberpv x))
+(defmethod! ?booleanp (x) (screamer:booleanpv x))
+(defmethod! ?avg (&rest list) (t2l::om/v (apply #'t2l::om+v list) (length list)))
+(defmethod! ?and (x &rest ys) (apply #'screamer:andv (append (list x) ys)))
+(defmethod! ?or (x &rest ys) (apply #'screamer:orv (append (list x) ys)))
+(defmethod! ?not (x) (t2l::omnotv x))
+(defmethod! ?abs (x) (t2l::omabsv x))
+(defmethod! ?% (n d) (t2l::om%v n d))
+(defmethod! paradigm--?%-calls-native-function ()
+            (setf t2l::*paradigm--modulo-function* t2l::*paradigm--modulo-calls-native-function*)
+            t2l::*paradigm--modulo-function*)
+(defmethod! paradigm--?%-restricts-bounds ()
+            (setf t2l::*paradigm--modulo-function* t2l::*paradigm--modulo-restricts-bounds*)                        t2l::*paradigm--modulo-function*)
+(defmethod! ?+ (&rest xs) (apply #'t2l::om+v xs))
+(defmethod! ?- (x &rest xs) (apply #'t2l::om-v (append (list x) xs)))
+(defmethod! ?* (&rest xs) (apply #'t2l::om*v xs))
+(defmethod! ?/ (&rest xs) (apply #'t2l::om/v xs))
+(defmethod! ?1+ (x) (?+ 1 x))
+(defmethod! ?-1 (x) (?- x 1))
+(defmethod! ?< (x y &rest xs) (apply #'t2l::om<v (append (list x y) xs)))
+(defmethod! ?> (x y &rest xs) (apply #'t2l::om>v (append (list x y) xs)))
+(defmethod! ?<= (x y &rest xs) (apply #'t2l::om<=v (append (list x y) xs)))
+(defmethod! ?>= (x y &rest xs) (apply #'t2l::om>=v (append (list x y) xs)))
+(defmethod! ?= (x y &rest xs) (apply #'t2l::om=v (append (list x y) xs)))
+(defmethod! ?/= (x y &rest xs) (apply #'t2l::om/=v (append (list x y) xs)))
+(defmethod! ?equal (x y) (t2l::omequalv x y))
+(defmethod! ?eql (xs ys) (t2l::omeqlv xs ys))
+(defmethod! ?not-eql (xs ys) (t2l::om!eqlv xs ys))
+(defmethod! ?between (x min max) (?and (?>= x min) (?<= x max)))
+(defmethod! ?<> (x from to) (?or (?< from x to) (?> from x to)))
+(defmethod! ?<>= (x from to) (?or (?<= from x to) (?>= from x to)))
+(defmethod! ?max (&rest xs) (apply #'t2l::ommaxv xs))
+(defmethod! ?min (&rest xs) (apply #'t2l::omminv xs))
 
 ;;;; assert!!
 (defmethod! assert!! (x &rest xs)
@@ -28,7 +105,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
 "
   (apply #'t2l::assert!! (append (list x) xs)))
 
-
+;; solver functions (to be renamed)
 (defmethod! find-any (x &key force-function cost-fun terminate-test order)
   :doc "FIND-ANY"
   (t2l::find-any2 x 
@@ -286,15 +363,31 @@ Documentation from https://nikodemus.github.io/screamer/
        (list (multiple-choice-list-element thischoice nil))
        (apply-nondeterministic #'multiple-choice-list (cdr template) choice-list))))))
 
-
+(defun calltrain1x (function-sequence argument-sequence)
+  (cond
+   ((null function-sequence) nil)
+   ((nondeterministic-function? (car function-sequence))
+    (append (list
+             (funcall-nondeterministic (car function-sequence) (car argument-sequence)))
+            (calltrain1x (cdr function-sequence) (cdr argument-sequence))))
+   ((functionp (car function-sequence))
+    (append (list
+             (funcall (car function-sequence) (car argument-sequence)))
+            (calltrain1x (cdr function-sequence) (cdr argument-sequence))))
+   (T
+    (append (list (car function-sequence))
+            (calltrain1x (cdr function-sequence) argument-sequence)))))
+            
 
 (in-package :om)
 (defmethod get-boxcallclass-fun ((self (eql 'choice-box))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'function-choice-box))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'multiple-choice-list))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'calltrain1x))) 'screamerboxes)
 (defmethod! choice-box (list) :icon 235 nil)
 (defmethod! function-choice-box (functions) :icon 147 nil)
 (defmethod! multiple-choice-list (template &rest choice-list) nil)
+(defmethod! calltrain1x (function-sequence argument-sequence) :icon 147 nil)
 
 (in-package :screamer)
 (defun fail-unbound (xs) 
@@ -337,96 +430,8 @@ https://nikodemus.github.io/screamer/#index-best_002dvalue-153"
 
 (in-package :om)
 
-;;;; generators
-(defmethod! ?template (template &key min max map make-integer make-real)
-  :doc "Copies an aggregate object, replacing any symbol beginning with a question mark with a newly created variable. 
 
-If the same symbol appears more than once in x, only one variable is created for that symbol, the same variable replacing any occurrences of that symbol. Thus (template '(a b (?c d ?e) ?e)) has the same effect as: 
-            (LET ((?C (MAKE-VARIABLE))
-                  (?E (MAKE-VARIABLE)))
-              (LIST 'A 'B (LIST C 'D E) E)).
 
-This is useful for creating patterns to be unified with other structures. "
-  :numouts 2
-  (t2l::om-template template :map map :min min :max max :map map :make-integer make-integer :make-real make-real))
-
-; (defmethod get-boxcallclass-fun ((self (eql 'solution))) 'screamerboxes)
-; (defmethod get-real-funname ((self (eql 'solution))) self)
-; (defmethod! solution (x force-function)
-;   :doc "solution"
-  ; (screamer:solution x (screamer:static-ordering #'screamer:linear-force)))
-
-(defmethod! ?=q (x y) nil)
-(defmethod get-boxcallclass-fun ((self (eql '?=q))) 'screamerboxes)
-(in-package :screamer)
-(defun ?=q (x y) (=v x y))
-(in-package :om)
-
-(defmethod! make?variable (&optional name) (if name (screamer:make-variable name) (screamer:make-variable)))
-
-(defmethod! make?variables (list &key min max integers-mode floats-mode symbol-mode) :icon 215 :doc "" (t2l::make-screamer-variables list :min min :max max :integers-mode integers-mode :floats-mode floats-mode :symbol-mode symbol-mode))
-
-(defmethod! ?a-number (&optional name) (if name (screamer:a-numberv name) (screamer:a-numberv)))
-(defmethod! ?a-real (&optional name) (if name (screamer:a-realv name) (screamer:a-realv)))
-(defmethod! ?a-real-above (low &optional name) (if name (screamer:a-real-abovev low name) (screamer:a-real-abovev low)))
-(defmethod! ?a-real-below (high &optional name) (if name (screamer:a-real-belowv high name) (screamer:a-real-belowv high)))
-(defmethod! ?a-real-between (low high &optional name) (if name (screamer:a-real-betweenv low high name) (screamer:a-real-betweenv low high)))
-(defmethod! ?an-integer (&optional name) (if name (screamer:an-integerv name) (screamer:an-integerv)))
-(defmethod! ?an-integer-above (low &optional name) (if name (screamer:an-integer-abovev low name) (screamer:an-integer-abovev low)))
-(defmethod! ?an-integer-below (high &optional name) (if name (screamer:an-integer-belowv high name) (screamer:an-integer-belowv high)))
-(defmethod! ?an-integer-between (low high &optional name) (if name (screamer:an-integer-betweenv low high name) (screamer:an-integer-betweenv low high)))
-(defmethod! ?an-integer= (x &optional name)
-  (let ((var (if name 
-                 (screamer:an-integerv name)
-               (screamer:an-integerv))))
-    (assert!! (?equal var x))
-    var))
-(defmethod! ?a-real= (x &optional name)
-  (let ((var (if name 
-                 (screamer:a-realv name)
-               (screamer:a-realv))))
-    (assert!! (?equal var x))
-    var))
-(defmethod! ?a-memberof (sequence) (screamer:a-member-ofv sequence))
-(defmethod! ?variables-in (x) (remove-duplicates (remove-if-not #'(lambda (y) (screamer::variable? y)) (remove nil (flatt x)))))
-(defmethod! ?xs-in (input) (remove-duplicates (remove-if-not #'(lambda (y) (or (numberp y) (screamer::variable? y))) (remove nil (flatt input)))))
-
-;;;; rules
-(defmethod! ?integerp (x) (screamer:integerpv x))
-(defmethod! ?realp (x) (screamer:numberpv x))
-(defmethod! ?numberp (x) (screamer:numberpv x))
-(defmethod! ?booleanp (x) (screamer:booleanpv x))
-(defmethod! ?avg (&rest list) (t2l::om/v (apply #'t2l::om+v list) (length list)))
-(defmethod! ?and (x &rest ys) (apply #'screamer:andv (append (list x) ys)))
-(defmethod! ?or (x &rest ys) (apply #'screamer:orv (append (list x) ys)))
-(defmethod! ?not (x) (t2l::omnotv x))
-(defmethod! ?abs (x) (t2l::omabsv x))
-(defmethod! ?% (n d) (t2l::om%v n d))
-(defmethod! paradigm--?%-calls-native-function ()
-            (setf t2l::*paradigm--modulo-function* t2l::*paradigm--modulo-calls-native-function*)
-            t2l::*paradigm--modulo-function*)
-(defmethod! paradigm--?%-restricts-bounds ()
-            (setf t2l::*paradigm--modulo-function* t2l::*paradigm--modulo-restricts-bounds*)                        t2l::*paradigm--modulo-function*)
-(defmethod! ?+ (&rest xs) (apply #'t2l::om+v xs))
-(defmethod! ?- (x &rest xs) (apply #'t2l::om-v (append (list x) xs)))
-(defmethod! ?* (&rest xs) (apply #'t2l::om*v xs))
-(defmethod! ?/ (&rest xs) (apply #'t2l::om/v xs))
-(defmethod! ?1+ (x) (?+ 1 x))
-(defmethod! ?-1 (x) (?- x 1))
-(defmethod! ?< (x y &rest xs) (apply #'t2l::om<v (append (list x y) xs)))
-(defmethod! ?> (x y &rest xs) (apply #'t2l::om>v (append (list x y) xs)))
-(defmethod! ?<= (x y &rest xs) (apply #'t2l::om<=v (append (list x y) xs)))
-(defmethod! ?>= (x y &rest xs) (apply #'t2l::om>=v (append (list x y) xs)))
-(defmethod! ?= (x y &rest xs) (apply #'t2l::om=v (append (list x y) xs)))
-(defmethod! ?/= (x y &rest xs) (apply #'t2l::om/=v (append (list x y) xs)))
-(defmethod! ?equal (x y) (t2l::omequalv x y))
-(defmethod! ?eql (xs ys) (t2l::omeqlv xs ys))
-(defmethod! ?not-eql (xs ys) (t2l::om!eqlv xs ys))
-(defmethod! ?between (x min max) (?and (?>= x min) (?<= x max)))
-(defmethod! ?<> (x from to) (?or (?< from x to) (?> from x to)))
-(defmethod! ?<>= (x from to) (?or (?<= from x to) (?>= from x to)))
-(defmethod! ?max (&rest xs) (apply #'t2l::ommaxv xs))
-(defmethod! ?min (&rest xs) (apply #'t2l::omminv xs))
 (defmethod! ?mapprules (input
                         prules 
                         &key symbol-mode
@@ -714,32 +719,23 @@ This is useful for creating patterns to be unified with other structures. "
 (defmethod! ?xlatsym (k map) :icon 147 (t2l::xlatsymv k map))
 (defmethod! ?intxlat (k map) :icon 147 (t2l::intxlatv k map))
 (defmethod! ?xlatint (k map) :icon 147 (t2l::xlatintv k map))
-(defmethod! ?input-pcsin (input fundamental &rest xs) (apply #'input-pcsin-mode (append (list input fundamental) xs)))
-(defmethod! ?input-pcsin-mode (input fundamental &rest xs)
-  :initvals '((69 62 64 65 67 65) 62 (0 2 3 5 7 8 10))
-  :indoc '("voice midinotes" 
-           "midinote representing the fundamental (tonic)"
-           "untransposed midinote series representing a mode or scale")
-   (cond
-   ((null xs) T)
-   (T
+
+(defmethod! ?input-pcsin (input fundamental &rest xs) (apply #'input-pcsin-mode (append (list input fundamental) xs))) ; deleted
+
+(defmethod! ?input-pcsin-mode (input fundamental &rest xs) ; replaced
+  (let* ((fundamental (or fundamental 0))
+         (variables (?xs-in input)))
     (labels
-        ((%12 (x) (?% x 12))
-         (transp?se (xs level) (map-func #'%12 (?list+ xs level))))
-      (let* ((sequence input)
-                (sequence%12 (mapcar #'%12 (?xs-in sequence))))
-           ;(?and
-            ;(?equal input sequence)
-            (map?or #'(lambda (ys) (?items-in sequence%12 (transp?se ys fundamental) :numeric T)) xs))))))
-    
+        ((notes-from (pcs)
+           (flatt (mapcar #'(lambda (y) (?list+ pcs y)) '(-12 0 12 24 36 48 60 72 84 96 112 124))))
+         (in-mode (pcs)
+           (?items-in variables (notes-from pcs) :numeric T)))
+    (cond
+     ((null xs) T)
+     (T (map?or #'in-mode xs))))))
 
 
-;         (transp?se (xs level)
-;           (map-func #'%12 (?list+ xs level))))
-;      (let ((input%12 (mapcar #'%12 (all?variables-in input))))
-;        (map?or #'(lambda (xs)
-;                    (?items-in input%12 (transp?se xs fundamental) :numeric T))
-;                modes))))))
+
             
 (defmethod! next-solver-input (&optional catalog)
   :icon 215
@@ -754,6 +750,7 @@ This is useful for creating patterns to be unified with other structures. "
         next)))))
 
 (defmethod! next-solver-output (&optional catalog) :icon 215 (t2l::next-solver-output catalog))
+(defmethod! prev-solver-output (&optional catalog) :icon 215 (t2l::prev-solver-output catalog))
 (defmethod! reset-solver-output (&optional catalog) :icon 340 (t2l::reset-solver-output))
 (defmethod! reset-solver-registry () :icon 340 (t2l::reset-solver-registry))
 
@@ -1019,13 +1016,35 @@ rule-definition function inputs
            (mapcar
             #'unflatten
             (mapcar #'mat-trans
-                    (group-sequence-on #'(lambda (chord next)
-                                           (let ((count 0))
-                                             (mapcar #'(lambda (x y) (if (not (equal x y)) (incf count)))
-                                                     chord
-                                                     next)
-                                             (= count 1)))
-                                       (mat-trans (flatten-seqc sequence))))))
+                    (group-sequence-on
+                     (let ((i -1))
+                       #'(lambda (xs ys)
+                           (block test
+                             (print (format nil ">>> xs: ~A ys: ~A" xs ys))
+                             (mapcar #'(lambda (x y) 
+                                         (cond 
+                                          ((and (null x) (null y))
+                                           (return-from test T))
+                                          ((or (null x) (null y))
+                                           (return-from test nil))))
+                                     xs ys)
+                             (or (equal xs ys)
+                                 (let ((count 0)) 
+                                   (mapcar #'(lambda (x y) (if (not (equal x y)) (incf count))) xs ys)
+                                   (if (= count 1)
+                                       (loop for j from 0 while (< j (length xs)) do
+                                               (if (not (equal (elt xs j) (elt ys j)))
+                                                   (cond 
+                                                    ((or (= i -1) (= i j))
+                                                     (setf i j)
+                                                     (return-from test T))
+                                                    (T 
+                                                     (setf i -1)
+                                                     (return-from test nil)))))
+                                     (progn
+                                       (setf i -1)
+                                       nil)))))))
+                     (mat-trans (flatten-seqc sequence))))))
          (unflatten (seqc)
            (mapcar #'(lambda (voice) 
                        (cond 
@@ -1320,7 +1339,7 @@ rule-definition function inputs
                          (list2comb next))))
                (group-sequence sequence))
 
-      ; (mapcar #'print fragments)
+      (setf fragments (nreverse fragments))
 
       (let ((fragments-to-process (remove-if-not #'(lambda (entry) 
                                                      (let ((selected? (funcall selector-fn (cadr entry))))
