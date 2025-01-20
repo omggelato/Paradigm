@@ -1,6 +1,6 @@
 (unless (find-package :t2l)
   (screamer:define-screamer-package :t2l 
-    (:use :om :system)))
+    (:use :OPENMUSIC :system)))
 ; (screamer:unwedge-screamer)
 (in-package :t2l)
 (cl:defun write*om-stream* (input &rest args) 
@@ -23,12 +23,12 @@
 (in-package :OPENMUSIC)
 (t2l::write*om-stream* "~% ====================~%")
 (require-library "OM-Backtrack_1230")
-(t2l::write*om-stream* "~% ====================~%")
 (mapc #'(lambda (file) 
           (t2l::write*om-stream* "~%Loading '~A' module... " (pathname-name file))
           (compile&load file t)
           (t2l::write*om-stream* "OK ")) t2l::*paradigm--library-files*)
-(t2l::write*om-stream* "~% (~A" (t2l::format-timestamp (get-universal-time)))
+(t2l::write*om-stream* "... (~A)~%" (t2l::format-timestamp (get-universal-time)))
+(t2l::disable-variable-cache-map)
 (fill-library 
  '(("solver" 
     Nil 
@@ -167,7 +167,10 @@
      flatten-seqc
      group-by-motion-type
      mat-trans
+     map-func-nondeterministic
+     map2func-nondeterministic
      multiple-choice-list
+     calltrain1x
      fuseseqc
      eventsms
      sequence->poly

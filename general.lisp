@@ -37,9 +37,7 @@
               ((and level-max (> level level-max)) list) ; abort              
               ((not (consp list)) (transform list level))
               (T
-               (cons (if (consp (car list))
-                         (map-func-internal (car list) (1+ level))
-                       (map-func-internal (car list) (1+ level)))
+               (cons (map-func-internal (car list) (1+ level))
                      (if (cdr list) (map-func-internal (cdr list) level))))))
 
            (transform (x level)
@@ -499,91 +497,6 @@
   
 
 
-;;; ?TEMPLATE functions (see visual.lisp)
-(defvar *symincr* nil) ; counter
-(cl:defun symincr (xs &key reset-counter)
-  (if reset-counter (setf *symincr* nil))
-  (labels
-      ((last-charof (str)
-         (cond
-          ((null str) nil)
-          ((= 1 (length str)) str)
-          (T (subseq str (1- (length str)) (length str)))))
-       (extract-label (str)
-         (cond
-          ((null str) nil)
-          ((= 1 (length str)) str)
-          ((or (string-equal "+" (last-charof str))
-               (string-equal "-" (last-charof str))
-               (string-equal "#" (last-charof str)))
-           (subseq str 0 (1- (length str))))
-          (T str)))
-
-       (increment? (str)
-         (and (> (length str) 1)
-              (string-equal "+" (last-charof str))))
-       (decrement? (str)
-         (and (> (length str) 1)
-              (string-equal "-" (last-charof str))))
-       (same-number? (str)
-         (and (> (length str) 1)
-              (string-equal "#" (last-charof str))))
-
-       (lookup (str)         
-         (let ((entry (assoc (extract-label str) *symincr* :test #'string-equal)))
-           (if entry (cdr entry) nil)))
-
-       (increment-key (input)
-         (let ((key (extract-label input)))
-           (if (lookup key)
-               (rplacd (assoc key *symincr* :test #'string-equal) (1+ (lookup key)))
-             (push (cons key 0) *symincr*))))
-       (decrement-key (input)
-         (let ((key (extract-label input)))         
-           (if (lookup key)
-               (rplacd (assoc key *symincr* :test #'string-equal) (1- (lookup key)))
-             (push (cons key 0) *symincr*))))
-       (register-key (input)         
-         (let ((key (extract-label input)))
-           (if (lookup key)
-               key
-             (push (cons key 0) *symincr*))))
-
-       (with-sequence-no (str)
-         (cond ((null str) nil)
-
-               ((numberp str) str)
-               ((screamer::variable? str) str)
-
-               ((= 0 (length str)) str)
-               ((= 1 (length str)) str)
-               ((not (string-equal "?" (subseq str 0 1))) str)
-
-               ((increment? str)
-                (increment-key str)
-                (concatenate 'string (extract-label str) (number-to-string (lookup str))))
-               ((decrement? str)
-                (decrement-key str)
-                (concatenate 'string (extract-label str) (number-to-string (lookup str))))
-               ((same-number? str)
-                (register-key str)
-                (concatenate 'string (extract-label str) (number-to-string (lookup str))))
-
-               (T str))))
-    (let ((input-symbol-names (map-func #'(lambda (x)
-                                            (cond
-                                             ((null x) nil)
-                                             ((numberp x) x)
-                                             ((screamer::variable? x) x)
-                                             (T (symbol-name x)))) xs)))
-      (map-func #'(lambda (x) ; (if x (intern x) nil)) 
-                    (cond
-                     ((null x) nil)
-                     ((numberp x) x)
-                     ((screamer::variable? x) x)
-                     (T (intern x))))
-                (map-func #'with-sequence-no input-symbol-names)))))
-
 (cl:defun make-screamer-vars (list &key min max integers-mode floats-mode symbol-mode retain-null-values)
   (make-screamer-variables list 
                            :min min
@@ -831,110 +744,7 @@
             (append (list (funcall-nondeterministic (car phases) value))
                     (cdr phases)))))))
 
-(defvar *om-template-unlabelled-variables-symbol* 'om::_)
-(cl:defun om-template (template &key map min max make-integer make-real)
-  :doc "Copies an aggregate object, replacing any symbol beginning with a question mark with a newly created variable. 
 
-If the same symbol appears more than once in x, only one variable is created for that symbol, the same variable replacing any occurrences of that symbol. Thus (template '(a b (?c d ?e) ?e)) has the same effect as: 
-            (LET ((?C (MAKE-VARIABLE))
-                  (?E (MAKE-VARIABLE)))
-              (LIST 'A 'B (LIST C 'D E) E)).
-
-This is useful for creating patterns to be unified with other structures. "
-  (labels
-      ((generate-variable ()
-         (add-constraints-from-arguments (make-variable)))
-       (add-constraints-from-arguments (x)
-         (if min
-             (assert! (>=v x min)))
-         (if max
-             (assert! (<=v x max)))
-         (cond ((and (or min max) make-real)
-                (assert! (realpv x)))
-               ((and (or min max)
-                     (necessarily? 
-                       (solution (orv
-                                  (andv (realpv min)
-                                        (notv (integerpv min)))
-                                  (andv (realpv max)
-                                        (notv (integerpv max))))
-                                 (static-ordering #'linear-force))))
-                (assert! (realpv x)))
-               ((or min max make-integer)
-                (assert! (integerpv x))))
-         x)
-       (process-input-sym (x)
-         (cond ((null x) nil)
-               ((equal x *om-template-unlabelled-variables-symbol*)
-                (generate-variable))
-               (t x)))
-       (lookup (x)
-         (cond
-          ((find x (mapcar #'car map))
-           (cdr (assoc x map)))
-          (t x))))
-    (let ((template (cond ((null template) nil)
-                          ((listp template)
-                           (map-func #'process-input-sym template))
-                          (t (process-input-sym template)))))
-      (cond
-       (map
-        (let ((template (cond ((null template) nil)
-                              ((listp template)
-                               (map-func #'lookup template))
-                              (t (lookup template)))))
-          (multiple-value-bind (template2 map2) (screamer:template template)
-            (values template2
-                    (append map map2)))))
-       (t
-        (multiple-value-bind (variables map) (screamer:template (symincr template :reset-counter T))
-          (mapcar #'add-constraints-from-arguments (mapcar #'cdr map))
-          (values variables map)))))))
-
-(cl:defun make-screamer-variables (list &key min max integers-mode floats-mode symbol-mode)
-  (labels ((integers-mode-fn (x) (cond ((null x) nil)
-                                       ((integerp x) x)
-                                       ((screamer::variable? x)
-                                        (assert! (integerpv x))
-                                        (assert! (>=v x min))
-                                        (assert! (<=v x max))
-                                        x)
-                                       (t (let ((var (an-integerv)))
-                                            (if min (assert! (>=v var min)))
-                                            (if max (assert! (<=v var max)))
-                                            var))))
-           (floats-mode-fn (x) (cond ((null x) nil)
-                                     ((or (integerp x) 
-                                          (floatp x)) x)                                      
-                                     ((screamer::variable? x)
-                                      (assert! (realpv x))
-                                      (assert! (>=v x min))
-                                      (assert! (<=v x max))
-                                      x)
-                                     (t (let ((var (a-realv)))
-                                          (if min (assert! (>=v var min)))
-                                          (if max (assert! (<=v var max)))
-                                          var))))
-           (symbol-mode-fn (x) (cond ((null x) nil)
-                                     ((screamer::variable? x) x)
-                                     ((or (equal x *om-template-unlabelled-variables-symbol*)
-                                          (equal x '_)) ; fix
-                                      (make-variable))
-                                     (T
-                                      (let ((variable (make-variable)))
-                                        (assert! (equalv variable x))
-                                        variable)))))
-    
-    (let ((fn (cond ((and (null integers-mode) 
-                          (null floats-mode) 
-                          (null symbol-mode)) #'integers-mode-fn)
-                    (integers-mode #'integers-mode-fn)
-                    (floats-mode #'floats-mode-fn)
-                    (t #'symbol-mode-fn))))
-      (map-func fn 
-                (cond ((null list) nil)
-                      ((listp list) list)
-                      (t (make-sequence 'list list :initial-element '_)))))))
 
 (cl:defun om-solver (i input &key points-system catalog force-function) (find-all i input :points-system points-system :force-function force-function))
 

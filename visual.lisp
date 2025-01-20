@@ -1,6 +1,12 @@
 (in-package :OPENMUSIC)
 
-(defmethod! ?template (template &key min max map make-integer make-real)
+(defmethod! ?template (template &key min max map (generator :an-integer))
+  :initvals '(nil nil nil nil :an-integer)
+  :numouts 2
+  :menuins '((4 (("make-variable" :make-variable)
+                 ("an-integer" :an-integer)
+                 ("a-real" :a-real)
+                 ("a-number" :a-number))))
   :doc "Copies an aggregate object, replacing any symbol beginning with a question mark with a newly created variable. 
 
 If the same symbol appears more than once in x, only one variable is created for that symbol, the same variable replacing any occurrences of that symbol. Thus (template '(a b (?c d ?e) ?e)) has the same effect as: 
@@ -9,9 +15,209 @@ If the same symbol appears more than once in x, only one variable is created for
               (LIST 'A 'B (LIST C 'D E) E)).
 
 This is useful for creating patterns to be unified with other structures. "
-  :numouts 2
-  (t2l::om-template template :map map :min min :max max :map map :make-integer make-integer :make-real make-real))
+  (let (variables-from-input)
+    (labels
+        ((apply-conditions-from-arguments (x)
 
+           (if min
+               (s:assert! (s:>=v x min)))
+           (if max
+               (s:assert! (s:<=v x max)))
+
+           (cond
+            ((eq :an-integer generator)
+             (s:assert! (s:integerpv x)))
+            ((eq :a-real generator)
+             (s:assert! (s:realpv x)))
+            ((eq :a-number generator)
+             (s:assert! (s:numberpv x))))
+
+           x)
+         (process-input-sym (x)
+           (let ((input (cond
+                         ((null x) nil)
+                         ((equal x *om-template-unlabelled-variables-symbol*)
+                          (apply-conditions-from-arguments (s:make-variable)))
+                         ((numberp x)
+                          (make-variable-from-number x))
+                         (T x))))
+             (if (and (s::variable? input) (not (find input variables-from-input :test 'equal)))
+                 (push input variables-from-input))
+             input))
+         (make-variable-from-number (input)
+           (cond
+            ((= input (floor input))
+             (let ((x (cond
+                       ((eq :an-integer generator) (s:an-integerv))
+                       (T (s:a-numberv)))))
+               (s:assert! (s:=v x input))
+               x))
+            (T
+             (let ((x (cond
+                       ((eq :a-real generator) (s:a-realv))
+                       (T (s:a-numberv)))))
+               (s:assert! (s:=v x input))
+               x))))
+         (lookup (x)
+           (cond
+            ((find x (mapcar #'car map))
+             (cdr (assoc x map)))
+            (T x))))
+
+      (let ((template (cond 
+                       ((null template) nil)
+                       ((listp template)
+                        (map-func #'process-input-sym template))
+                       (T (process-input-sym template)))))
+        (cond
+         (map
+          (let ((template (cond ((null template) nil)
+                                ((listp template)
+                                 (map-func #'lookup template))
+                                (t (lookup template)))))
+            (multiple-value-bind (template2 map2) (screamer:template template)
+              (values template2
+                      (append map map2)))))
+         (T
+          (multiple-value-bind (variables map) (screamer:template (symincr template :reset-counter T))
+            (mapcar #'(lambda (x)
+                        (unless (find x variables-from-input :test 'equal)
+                          (apply-conditions-from-arguments x)))
+                    (mapcar #'cdr map))
+            (values variables map))))))))
+
+(defvar *om-template-unlabelled-variables-symbol* 'om::_)
+
+;;; ?TEMPLATE functions
+(defvar *symincr* nil) ; counter
+(cl:defun symincr (xs &key reset-counter)
+  (if reset-counter (setf *symincr* nil))
+  (labels
+      ((last-charof (str)
+         (cond
+          ((null str) nil)
+          ((= 1 (length str)) str)
+          (T (subseq str (1- (length str)) (length str)))))
+       (extract-label (str)
+         (cond
+          ((null str) nil)
+          ((= 1 (length str)) str)
+          ((or (string-equal "+" (last-charof str))
+               (string-equal "-" (last-charof str))
+               (string-equal "#" (last-charof str)))
+           (subseq str 0 (1- (length str))))
+          (T str)))
+
+       (increment? (str)
+         (and (> (length str) 1)
+              (string-equal "+" (last-charof str))))
+       (decrement? (str)
+         (and (> (length str) 1)
+              (string-equal "-" (last-charof str))))
+       (same-number? (str)
+         (and (> (length str) 1)
+              (string-equal "#" (last-charof str))))
+
+       (lookup (str)         
+         (let ((entry (assoc (extract-label str) *symincr* :test #'string-equal)))
+           (if entry (cdr entry) nil)))
+
+       (increment-key (input)
+         (let ((key (extract-label input)))
+           (if (lookup key)
+               (rplacd (assoc key *symincr* :test #'string-equal) (1+ (lookup key)))
+             (push (cons key 0) *symincr*))))
+       (decrement-key (input)
+         (let ((key (extract-label input)))         
+           (if (lookup key)
+               (rplacd (assoc key *symincr* :test #'string-equal) (1- (lookup key)))
+             (push (cons key 0) *symincr*))))
+       (register-key (input)         
+         (let ((key (extract-label input)))
+           (if (lookup key)
+               key
+             (push (cons key 0) *symincr*))))
+
+       (with-sequence-no (str)
+         (cond ((null str) nil)
+
+               ((numberp str) str)
+               ((screamer::variable? str) str)
+
+               ((= 0 (length str)) str)
+               ((= 1 (length str)) str)
+               ((not (string-equal "?" (subseq str 0 1))) str)
+
+               ((increment? str)
+                (increment-key str)
+                (concatenate 'string (extract-label str) (number-to-string (lookup str))))
+               ((decrement? str)
+                (decrement-key str)
+                (concatenate 'string (extract-label str) (number-to-string (lookup str))))
+               ((same-number? str)
+                (register-key str)
+                (concatenate 'string (extract-label str) (number-to-string (lookup str))))
+
+               (T str))))
+    (let ((input-symbol-names (map-func #'(lambda (x)
+                                            (cond
+                                             ((null x) nil)
+                                             ((numberp x) x)
+                                             ((screamer::variable? x) x)
+                                             (T (symbol-name x)))) xs)))
+      (map-func #'(lambda (x) ; (if x (intern x) nil)) 
+                    (cond
+                     ((null x) nil)
+                     ((numberp x) x)
+                     ((screamer::variable? x) x)
+                     (T (intern x))))
+                (map-func #'with-sequence-no input-symbol-names)))))
+
+; delete
+(cl:defun make-screamer-variables (list &key min max integers-mode floats-mode symbol-mode)
+  (labels ((integers-mode-fn (x) (cond ((null x) nil)
+                                       ((integerp x) x)
+                                       ((screamer::variable? x)
+                                        (assert! (integerpv x))
+                                        (assert! (>=v x min))
+                                        (assert! (<=v x max))
+                                        x)
+                                       (t (let ((var (an-integerv)))
+                                            (if min (assert! (>=v var min)))
+                                            (if max (assert! (<=v var max)))
+                                            var))))
+           (floats-mode-fn (x) (cond ((null x) nil)
+                                     ((or (integerp x) 
+                                          (floatp x)) x)                                      
+                                     ((screamer::variable? x)
+                                      (assert! (realpv x))
+                                      (assert! (>=v x min))
+                                      (assert! (<=v x max))
+                                      x)
+                                     (t (let ((var (a-realv)))
+                                          (if min (assert! (>=v var min)))
+                                          (if max (assert! (<=v var max)))
+                                          var))))
+           (symbol-mode-fn (x) (cond ((null x) nil)
+                                     ((screamer::variable? x) x)
+                                     ((or (equal x *om-template-unlabelled-variables-symbol*)
+                                          (equal x '_)) ; fix
+                                      (make-variable))
+                                     (T
+                                      (let ((variable (make-variable)))
+                                        (assert! (equalv variable x))
+                                        variable)))))
+    
+    (let ((fn (cond ((and (null integers-mode) 
+                          (null floats-mode) 
+                          (null symbol-mode)) #'integers-mode-fn)
+                    (integers-mode #'integers-mode-fn)
+                    (floats-mode #'floats-mode-fn)
+                    (t #'symbol-mode-fn))))
+      (map-func fn 
+                (cond ((null list) nil)
+                      ((listp list) list)
+                      (t (make-sequence 'list list :initial-element '_)))))))
 ;;;; generators
 (defmethod! make?variable (&optional name) (if name (screamer:make-variable name) (screamer:make-variable)))
 (defmethod! make?variables (list &key min max integers-mode floats-mode symbol-mode) :icon 215 :doc "" (t2l::make-screamer-variables list :min min :max max :integers-mode integers-mode :floats-mode floats-mode :symbol-mode symbol-mode))
@@ -66,7 +272,7 @@ This is useful for creating patterns to be unified with other structures. "
 (defmethod! ?> (x y &rest xs) (apply #'t2l::om>v (append (list x y) xs)))
 (defmethod! ?<= (x y &rest xs) (apply #'t2l::om<=v (append (list x y) xs)))
 (defmethod! ?>= (x y &rest xs) (apply #'t2l::om>=v (append (list x y) xs)))
-(defmethod! ?= (x y &rest xs) (apply #'t2l::om=v (append (list x y) xs)))
+(defmethod! ?= (x &rest xs) (apply #'t2l::om=v (append (list x) xs)))
 (defmethod! ?/= (x y &rest xs) (apply #'t2l::om/=v (append (list x y) xs)))
 (defmethod! ?equal (x y) (t2l::omequalv x y))
 (defmethod! ?eql (xs ys) (t2l::omeqlv xs ys))
@@ -129,31 +335,8 @@ directly nested in a call to ASSERT!, are similarly transformed.
 
 (defmethod! solver-output (&optional value &key label) :icon 215 (t2l::solver-output value :label label))
 
-;;;; additional functions for OM-Backtrack
+
 (in-package :screamer)
-(cl:defun interval-in-minutes (start-timestamp end-timestamp)
-  (/ (/ (- end-timestamp start-timestamp) 1000) 60))
-(cl:defun timestamp-in-minutes (timestamp)
-  (/ (/ timestamp 1000) 60))
-(cl:defun extract-screamer-variables (xs)
-  (cond 
-   ((null xs) nil)
-   ((not (listp xs))
-    (extract-screamer-variables (list xs)))
-   (T
-    (remove-duplicates (remove-if-not #'variable? (t2l::flatt xs)) :from-end T))))
-(cl:defun save-to-solver-output (value)
-  (global
-   (if (null t2l::*findall2-values*)
-       (setf t2l::*findall-last-value-cons* (list value)
-             t2l::*findall2-values* t2l::*findall-last-value-cons*)
-     (setf (rest t2l::*findall-last-value-cons*) (list value)
-           t2l::*findall-last-value-cons* (rest t2l::*findall-last-value-cons*)))))
-(cl:defun clear-solver-output ()
-    (global
-     (progn
-         (setf t2l::*findall2-values* '())
-         (setf t2l::*findall-last-value-cons* nil))))
 
 ;;;; SCREAMER:SOLUTION
 (defun ?solution-internal (x &key 
@@ -179,6 +362,38 @@ directly nested in a call to ASSERT!, are similarly transformed.
                                             (cons :match soln))))
                     soln)))
 
+(defun interval-in-minutes (start-timestamp end-timestamp)
+  (/ (/ (- end-timestamp start-timestamp) 1000) 60))
+
+(defun timestamp-in-minutes (timestamp)
+  (/ (/ timestamp 1000) 60))
+
+(defun extract-screamer-variables (xs)
+  (cond 
+   ((null xs) nil)
+   ((not (listp xs))
+    (extract-screamer-variables (list xs)))
+   (T
+    (remove-duplicates (remove-if-not #'variable? (t2l::flatt xs)) :from-end T))))
+
+(defun save-to-solver-output (value)
+  (global
+   (if (null t2l::*findall2-values*)
+       (setf t2l::*findall-last-value-cons* (list value)
+             t2l::*findall2-values* t2l::*findall-last-value-cons*)
+     (setf (rest t2l::*findall-last-value-cons*) (list value)
+           t2l::*findall-last-value-cons* (rest t2l::*findall-last-value-cons*)))))
+
+(defun clear-solver-output ()
+    (global
+     (progn
+         (setf t2l::*findall2-values* '())
+         (setf t2l::*findall-last-value-cons* nil))))
+
+(defun fail-unbound (xs) 
+  (unless (ground? xs)
+    (fail))
+  xs)
 
 (defun ?solution (x &key 
                     force-function
@@ -194,13 +409,13 @@ directly nested in a call to ASSERT!, are similarly transformed.
   (when save-matches-to-solver-output
     (t2l::reset-solver-registry))
 
-  (let* ((start-timestamp (get-internal-real-time))
+  (let* ((start-timestamp (get-universal-time))
          (abort-timestamp (if abort-after
                               (+ (* (* abort-after 60) 1000) start-timestamp)
                             -1))
          (match-count 0))
     (let ((terminate-test (cond (abort-after #'(lambda (x)
-                                                 (let ((timestamp (get-internal-real-time)))
+                                                 (let ((timestamp (get-universal-time)))
                                                    (let ((terminate? (or (> timestamp abort-timestamp)
                                                                          (and terminate-test
                                                                               (funcall terminate-test x)))))
@@ -259,39 +474,6 @@ directly nested in a call to ASSERT!, are similarly transformed.
                                 :order order 
                                 :onmatch onmatch)))))))
 
-
-(in-package :om)
-(defmethod get-boxcallclass-fun ((self (eql '?solution))) 'screamerboxes) 
-(defmethod! ?solution (x &key 
-                    force-function
-                    cost-fun
-                    terminate-test 
-                    order 
-                    onmatch
-                    save-matches-to-solver-output
-                    abort-after 
-                    fail-after-count 
-                    fail-unbound)
- :doc "
-Documentation from https://nikodemus.github.io/screamer/
-
-"
- :icon 150
- nil)
-
-(in-package :screamer)
-(defun bt-group-list (input groups)
-  (let ((xs (t2l::an-ordered-partition-of input)))
-    (unless (= (length xs) groups) (fail))
-    xs))
-
-(in-package :om)
-(defmethod get-boxcallclass-fun ((self (eql 'bt-group-list))) 'screamerboxes)
-(defmethod! bt-group-list (input groups)
-  (s::bt-group-list input groups))
-
-
-(in-package :screamer)
 (defun choice-box (list)
   (cond
    ((null list) (fail))
@@ -305,6 +487,11 @@ Documentation from https://nikodemus.github.io/screamer/
   (cond
    ((null functions) (fail))
    (T (either (funcall-nondeterministic (car functions)) (function-choice-box (cdr functions))))))
+
+(defun bt-group-list (input groups)
+  (let ((xs (t2l::an-ordered-partition-of input)))
+    (unless (= (length xs) groups) (fail))
+    xs))
 
 (defun multiple-choice-list-element (thischoice randomized)
   (cond ((nondeterministic-function? thischoice) 
@@ -378,58 +565,186 @@ Documentation from https://nikodemus.github.io/screamer/
     (append (list (car function-sequence))
             (calltrain1x (cdr function-sequence) argument-sequence)))))
             
+(defun map-func-nondeterministic-internal (fn x level)
+  (cond
+   ((or (null x)
+        (not (consp x)))
+    (funcall-nondeterministic fn x level))
 
-(in-package :om)
+   (T (cons (map-func-nondeterministic-internal fn (car x) (1+ level))
+            (if (cdr x) (map-func-nondeterministic-internal fn (cdr x) level))))))
+
+(defun map-func-nondeterministic (fn x &key with-levels)
+  (map-func-nondeterministic-internal (if with-levels
+                                          #'(lambda (x level) (funcall-nondeterministic fn x level))
+                                        #'(lambda (x level) (funcall-nondeterministic fn x)))
+                                      x 0))
+
+(defun map2func-nondeterministic-internal (fn x y)
+  (cond
+   ((and (null x) (null y))
+    (funcall-nondeterministic fn x y))
+
+   ((or (null x) (null y))
+    (error (format nil "input mismatch, #1 - x: ~A y: ~A" x y)))
+
+   ((and (not (consp x))
+         (not (consp y)))
+    (funcall-nondeterministic fn x y))
+
+   ((or (not (consp x))
+        (not (consp y)))
+    (error (format nil "input mismatch, #2 - x: ~A y: ~A" x y)))
+
+   ((and (consp (car x))
+         (consp (car y)))
+    (cons (map2func-nondeterministic-internal fn (car x) (car y))
+          (if (and (cdr x) (cdr y))
+              (map2func-nondeterministic-internal fn (cdr x) (cdr y)))))
+
+   ((or (consp (car x))
+        (consp (car y)))
+    (error (format nil "input mismatch, #3 - x: ~A y: ~A" x y)))
+
+   (T (cons (funcall-nondeterministic fn (car x) (car y))
+            (if (and (cdr x) (cdr y))
+                (map2func-nondeterministic-internal fn (cdr x) (cdr y)))))))
+
+(defun map2func-nondeterministic (fn x y)
+  (map2func-nondeterministic-internal fn x y))
+
+(in-package :OPENMUSIC)
+
+(defmethod get-boxcallclass-fun ((self (eql 'assert!))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'value-of))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'apply-substitution))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'bound?))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'ground?))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'applyv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'funcallv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'equalv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'booleanpv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'numberpv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'memberv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'notv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'count-truesv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'known?))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'decide))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'andv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'orv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '<v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '<=v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '=v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '>=v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '>v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '/=v))) 'screamerboxes)
+
+(defmethod get-boxcallclass-fun ((self (eql 'make-variable))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'a-booleanv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'a-member-ofv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'a-numberv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'a-realv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'a-real-abovev))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'a-real-belowv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'a-real-betweenv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integerv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer-abovev))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer-belowv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer-betweenv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'minv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'maxv))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '+v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '-v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '*v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '/v))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '?solution))) 'screamerboxes) 
+(defmethod get-boxcallclass-fun ((self (eql 'fail-unbound))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'choice-box))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'function-choice-box))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'bt-group-list))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'multiple-choice-list))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'calltrain1x))) 'screamerboxes)
-(defmethod! choice-box (list) :icon 235 nil)
-(defmethod! function-choice-box (functions) :icon 147 nil)
-(defmethod! multiple-choice-list (template &rest choice-list) nil)
-(defmethod! calltrain1x (function-sequence argument-sequence) :icon 147 nil)
+(defmethod get-boxcallclass-fun ((self (eql 'map-func-nondeterministic))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'map2func-nondeterministic))) 'screamerboxes)
 
-(in-package :screamer)
-(defun fail-unbound (xs) 
-  (unless (ground? xs)
-    (fail))
-  xs)
-(in-package :om)
-(defmethod! fail-unbound (xs) nil)
-(defmethod get-boxcallclass-fun ((self (eql 'fail-unbound))) 'screamerboxes)
+(defmethod! assert! (x) (s:assert! x))
+(defmethod! value-of (x) (s:value-of x))
+(defmethod! apply-substitution (x) (s:apply-substitution x))
+(defmethod! bound? (x) (bound? x))
+(defmethod! ground? (x) (ground? x))
+(defmethod! applyv (f x &rest xs) (apply #'s:applyv (append (list f x) xs)))
+(defmethod! funcallv (f &rest x) (apply #'s:funcallv (append (list f x) xs)))
+(defmethod! equalv (x y) (s:equalv x y))
+(defmethod! booleanpv (x) (s:booleanpv x))
+(defmethod! numberpv (x) (s:numberpv x))
+(defmethod! memberv (x sequence) (s:memberv x sequence))
+(defmethod! notv (x) (s:notv x))
+(defmethod! count-truesv (&rest xs) (apply #'s:count-truesv xs))
+(defmethod! known? (x) (s:known? x))
+(defmethod! decide (x) (s:decide x))
+(defmethod! andv (&rest xs) (apply #'s:andv xs))
+(defmethod! orv (&rest xs) (apply #'s:orv xs))
+(defmethod! <v (x &rest xs) (apply #'s:<v (append (list x) xs)))
+(defmethod! <=v (x &rest xs)(apply #'s:<=v (append (list x) xs)))
+(defmethod! =v (x &rest xs) (apply #'s:=v (append (list x) xs)))
+(defmethod! >v (x &rest xs) (apply #'s:>v (append (list x) xs)))
+(defmethod! >=v (x &rest xs) (apply #'s:>=v (append (list x) xs)))
+(defmethod! /=v (x &rest xs) (apply #'s:/=v (append (list x) xs)))
+(defmethod! make-variable (&optional name) (s:make-variable name))
+(defmethod! a-booleanv (&optional name) (s:a-booleanv name))
+(defmethod! a-member-ofv (values &optional name) (s:a-member-ofv values name))
+(defmethod! a-numberv (&optional name) (s:a-numberv name))
+(defmethod! a-realv (&optional name) (s:a-realv name))
+(defmethod! a-real-abovev (low &optional name) (s:a-real-abovev low name))
+(defmethod! a-real-belowv (high &optional name) (s:a-real-belowv high name))
+(defmethod! a-real-betweenv (low high &optional name) (s:a-real-betweenv low high name))
+(defmethod! an-integerv (&optional name) (s:an-integerv name))
+(defmethod! an-integer-abovev (low &optional name) (s:an-integer-abovev low name))
+(defmethod! an-integer-belowv (high &optional name) (s:an-integer-belowv high name))
+(defmethod! an-integer-betweenv (low high &optional name) (s:an-integer-betweenv low high name))
+(defmethod! minv (x &rest xs) (apply #'s:minv (append (list x) xs)))
+(defmethod! maxv (x &rest xs) (apply #'s:maxv (append (list x) xs)))
+(defmethod! +v (&rest xs) (apply #'s:+v xs))
+(defmethod! -v (&rest xs) (apply #'s:-v xs))
+(defmethod! *v (&rest xs) (apply #'s:*v xs))
+(defmethod! /v (&rest xs) (apply #'s:/v xs))
+(defmethod! ?solution (x &key 
+                    force-function
+                    cost-fun
+                    terminate-test 
+                    order 
+                    onmatch
+                    save-matches-to-solver-output
+                    abort-after 
+                    fail-after-count 
+                    fail-unbound)
+ :doc "
+Documentation from https://nikodemus.github.io/screamer/
 
-(in-package :om)
-(defmethod get-boxcallclass-fun ((self (eql 'best-value))) 'screamer-valuation-boxes)
-(defmethod get-real-funname ((self (eql 'best-value))) self)
-(defmethod! best-value (form1 objective-form &optional (form2 nil form2?))
-  :initvals '(nil nil nil)
-  :indoc '("form1" "objective-form" "form2")
-  :doc "First evaluates OBJECTIVE-FORM, which should evaluate to constraint variable V.
-
-Then repeatedly evaluates FORM1 in non-deterministic context till it fails. If
-previous round of evaluation produced an upper bound B for V, the during the
-next round any change to V must provide an upper bound higher than B, or that
-that change fails.
-
-If the last successful evaluation of FORM produced an upper bound for V,
-returns a list of two elements: the the primary value of FORM1 from that
-round, and the upper bound of V.
-
-Otherwise if FORM2 is provided, returns the result of evaluating it, or else
-calls fails.
-
-Note: this documentation string is entirely reverse-engineered. Lacking
-information on just how BEST-VALUE was intended to work, it is hard to tell
-what is a bug, an accident of implementation, and what is a feature. If you
-have any insight into BEST-VALUE, please send email to
-nikodemus@random-state.net.
-
-https://nikodemus.github.io/screamer/#index-best_002dvalue-153"
-  nil) ;; (screamer:best-value form1 objective-form form2))
+"
+ :icon 150
+ (s::?solution x 
+            :force-function force-function
+            :cost-fun cost-fun
+            :terminate-test terminate-test
+            :order order
+            :onmatch onmatch
+            :save-matches-to-solver-output save-matches-to-solver-output
+            :abort-after abort-after
+            :fail-after-count fail-after-count
+            :fail-unbound fail-unbound))
+(defmethod! fail-unbound (xs) (s::fail-unbound xs))
+(defmethod! choice-box (list) :icon 235 (s::choice-box list))
+(defmethod! function-choice-box (functions) :icon 147 (s::function-choice-box functions))
+(defmethod! bt-group-list (input groups) (s::bt-group-list input groups))
+(defmethod! multiple-choice-list (template &rest choice-list) (apply-nondeterministic #'s::multiple-choice-list (append (list template) choice-list)))
+(defmethod! calltrain1x (function-sequence argument-sequence) :icon 147 (s::calltrain1x function-sequence argument-sequence))
+(defmethod! map-func-nondeterministic (fn x &key with-levels) :icon 147 (s::map-func-nondeterministic fn x :with-levels with-levels))
+(defmethod! map2func-nondeterministic (fn x y) :icon 147 (s::map2func-nondeterministic fn x y))
 
 
-(in-package :om)
 
+(in-package :OPENMUSIC)
 
 
 (defmethod! ?mapprules (input
@@ -1279,8 +1594,18 @@ rule-definition function inputs
             #'unflatten
             (mapcar 
              #'mat-trans
-             (group-sequence-on (let ((i -1))
-                     #'(lambda (xs ys)
+             (group-sequence-on
+                 (let ((i -1))
+                   #'(lambda (xs ys)
+                       (block test
+                         ; (print (format nil ">>> xs: ~A ys: ~A" xs ys))
+                         (mapcar #'(lambda (x y) 
+                                     (cond 
+                                      ((and (null x) (null y))
+                                       (return-from test T))
+                                      ((or (null x) (null y))
+                                       (return-from test nil))))
+                                 xs ys)
                          (or (equal xs ys)
                              (let ((count 0)) 
                                (mapcar #'(lambda (x y) (if (not (equal x y)) (incf count))) xs ys)
@@ -1290,14 +1615,14 @@ rule-definition function inputs
                                                (cond 
                                                 ((or (= i -1) (= i j))
                                                  (setf i j)
-                                                 (return T))
+                                                 (return-from test T))
                                                 (T 
                                                  (setf i -1)
-                                                 (return nil)))))
+                                                 (return-from test nil)))))
                                  (progn
                                    (setf i -1)
-                                   nil))))))
-                                       (mat-trans (flatten-seqc sequence))))))
+                                   nil)))))))
+           (mat-trans (flatten-seqc sequence))))))
          
          (firsts (seqc) (mapcar #'list (mapcar #'car (mapcar #'flatt (mapcar #'list seqc)))))
          (flatten-with-continuation (seqc next)
@@ -1356,31 +1681,34 @@ rule-definition function inputs
                      fragments-to-process)))))))
 
 (cl:defun consecutive-open-intervals-2-internal-fn (voice2x)
-  (maplist?and
-   #'(lambda (chord-list)
-       (cond 
-        ((null chord-list) T)
-        ((not (cdr chord-list)) T)     
-        (T
-         (let ((chord1 (car chord-list)) (chord2 (cadr chord-list)))
-           (cond
-            ((has-null-values chord1) T)
-            ((has-null-values chord2) T)
-            ((equal chord1 chord2) T)
-            ((equal (car chord1) (car chord2)) T)
-            ((equal (cadr chord1) (cadr chord2)) T)
-            (T
-             (labels
-                 ((interval%12 (x y) (?% (?- y x) 12)))
-               (let ((chords-repeat (?and (?lists= chord1 chord2)))
-                     (interval1 (interval%12 (car chord1) (cadr chord1)))
-                     (interval2 (interval%12 (car chord2) (cadr chord2))))
-        ; (print (format nil "chord1 ~A chord2 ~A chords-repeat ~A interval1 ~A interval2 ~A" chord1 chord2 chords-repeat interval1 interval2))
-        (?or 
-         (?and (?not (?and (?= interval1 7) (?= interval2 7)))
-               (?not (?and (?= interval1 0) (?= interval2 0))))
-         chords-repeat)))))))))
-   (mat-trans voice2x)))
+  (labels
+      ((lists=v (xs ys) (apply #'andv (mapcar #'(lambda (x y) (=v x y)) xs ys))))
+    (maplist?and
+     #'(lambda (chord-list)
+         (cond 
+          ((null chord-list) T)
+          ((not (cdr chord-list)) T)     
+          (T
+           (let ((chord1 (car chord-list)) (chord2 (cadr chord-list)))
+             (cond
+              ((has-null-values chord1) T)
+              ((has-null-values chord2) T)
+              ((equal chord1 chord2) T)
+              ((equal (car chord1) (car chord2)) T)
+              ((equal (cadr chord1) (cadr chord2)) T)
+              (T
+               (labels
+                   ((interval%12 (x y) (?% (-v y x) 12)))
+                 (let ((chords-repeat (andv (lists=v chord1 chord2)))
+                       (interval1 (interval%12 (car chord1) (cadr chord1)))
+                       (interval2 (interval%12 (car chord2) (cadr chord2))))
+                   (orv 
+                    (andv (notv (andv (=v interval1 7) (=v interval2 7)))
+                          (notv (andv (=v interval1 0) (=v interval2 0))))
+                    chords-repeat)))))))))
+     (mat-trans voice2x))))
+
+
 
 (defmethod! paradigm--enable-variable-cache-map () (t2l::enable-variable-cache-map))
 (defmethod! paradigm--disable-variable-cache-map () (t2l::disable-variable-cache-map))
