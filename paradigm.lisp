@@ -12,6 +12,7 @@
 (setf *paradigm--source-files* (list (om::om-relative-path '(".") "visual")
                                     (om::om-relative-path '(".") "screamer ext")
                                     (om::om-relative-path '(".") "general")
+                                    (om::om-relative-path '(".") "eventsms")
                                     (om::om-relative-path '(".") "misc"))
       *paradigm--library-files* (append *paradigm--source-files* *paradigm--package-files*))
 (in-package :OPENMUSIC)
@@ -192,7 +193,8 @@
      list-excerpt
      list-structure-equal
      all?variables-in
-     ?variable-names)
+     ?variable-names
+     assert!!!)
     Nil)
 
    ("control panel" 

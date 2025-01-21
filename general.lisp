@@ -7,6 +7,11 @@
 
 (in-package :t2l)
 
+(screamer::defmacro-compile-time ith-value-from (i expression)
+  `(if (= ,i 0) 
+       (fail)
+     (ith-value ,i ,expression (ith-value-from (1- ,i) ,expression))))
+
 (cl:defun map-func (fn list &key with-levels level-min level-max ignore-null-input)
 
   (unless (or (and (null level-min)
@@ -185,48 +190,48 @@
 
 (cl:defun maplist-andv (fn list)
   (cond ((null list) T)
-        (T (reduce #'andv (maplist fn list)))))
+        (T (apply #'andv (maplist fn list)))))
 
 (cl:defun maplist2andv (fn list1 list2)
   (cond ((null list1) T)
         ((null list2) T)
-        (T (reduce #'andv (maplist fn list1 list2)))))
+        (T (apply #'andv (maplist fn list1 list2)))))
 
 (cl:defun maplist3andv (fn list1 list2 list3)
   :icon 147
   (cond ((null list1) T)
         ((null list2) T)
         ((null list3) T)
-        (T (reduce #'andv (maplist fn list1 list2 list3)))))
+        (T (apply #'andv (maplist fn list1 list2 list3)))))
 
 (cl:defun maplist4andv (fn list1 list2 list3 list4)
   (cond ((null list1) T)
         ((null list2) T)
         ((null list3) T)
         ((null list4) T)
-        (T (reduce #'andv (maplist fn list1 list2 list3 list4)))))
+        (T (apply #'andv (maplist fn list1 list2 list3 list4)))))
 
 (cl:defun maplist-orv (fn list)
   (cond ((null list) T)
-        (T (reduce #'orv (maplist fn list)))))
+        (T (apply #'orv (maplist fn list)))))
 
 (cl:defun maplist2orv (fn list1 list2)
   (cond ((null list1) T)
         ((null list2) T)
-        (T (reduce #'orv (maplist fn list1 list2)))))
+        (T (apply #'orv (maplist fn list1 list2)))))
 
 (cl:defun maplist3orv (fn list1 list2 list3)
   (cond ((null list1) T)
         ((null list2) T)
         ((null list3) T)
-        (T (reduce #'orv (maplist fn list1 list2 list3)))))
+        (T (apply #'orv (maplist fn list1 list2 list3)))))
 
 (cl:defun maplist4orv (fn list1 list2 list3 list4)
    (cond ((null list1) T)
         ((null list2) T)
         ((null list3) T)
         ((null list4) T)
-        (T (reduce #'orv (maplist fn list1 list2 list3 list4)))))
+        (T (apply #'orv (maplist fn list1 list2 list3 list4)))))
 
 (cl:defun list-depth (list)
   (let ((depth 0))
@@ -2282,7 +2287,7 @@
         (assert! (>=v x 0))
         x)))
 (setf *paradigm--modulo-function* *paradigm--modulo-restricts-bounds*)
-(cl:defun %v (n d) (funcall *paradigm--modulo-function* n d))
+(cl:defun %v (n d) (s::%v n d))
 (cl:defun modv (n d) (%v n d))
 (cl:defun om%v (n d)
   (or (lookup-solver-key #'om%v n d)

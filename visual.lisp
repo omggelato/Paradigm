@@ -256,32 +256,29 @@ This is useful for creating patterns to be unified with other structures. "
 (defmethod! ?or (x &rest ys) (apply #'screamer:orv (append (list x) ys)))
 (defmethod! ?not (x) (t2l::omnotv x))
 (defmethod! ?abs (x) (t2l::omabsv x))
-(defmethod! ?% (n d) (t2l::om%v n d))
-(defmethod! paradigm--?%-calls-native-function ()
-            (setf t2l::*paradigm--modulo-function* t2l::*paradigm--modulo-calls-native-function*)
-            t2l::*paradigm--modulo-function*)
-(defmethod! paradigm--?%-restricts-bounds ()
-            (setf t2l::*paradigm--modulo-function* t2l::*paradigm--modulo-restricts-bounds*)                        t2l::*paradigm--modulo-function*)
-(defmethod! ?+ (&rest xs) (apply #'t2l::om+v xs))
-(defmethod! ?- (x &rest xs) (apply #'t2l::om-v (append (list x) xs)))
-(defmethod! ?* (&rest xs) (apply #'t2l::om*v xs))
-(defmethod! ?/ (&rest xs) (apply #'t2l::om/v xs))
+(defmethod! ?% (n d) (s::%v n d))
+(defmethod! paradigm--?%-calls-native-function () (s::paradigm--modulo-calls-native-function))
+(defmethod! paradigm--?%-restricts-bounds () (s::paradigm--modulo-restricts-bounds))
+(defmethod! ?+ (&rest xs) (apply #'+v xs))
+(defmethod! ?- (x &rest xs) (apply #'-v (append (list x) xs)))
+(defmethod! ?* (&rest xs) (apply #'*v xs))
+(defmethod! ?/ (&rest xs) (apply #'/v xs))
 (defmethod! ?1+ (x) (?+ 1 x))
 (defmethod! ?-1 (x) (?- x 1))
-(defmethod! ?< (x y &rest xs) (apply #'t2l::om<v (append (list x y) xs)))
-(defmethod! ?> (x y &rest xs) (apply #'t2l::om>v (append (list x y) xs)))
-(defmethod! ?<= (x y &rest xs) (apply #'t2l::om<=v (append (list x y) xs)))
-(defmethod! ?>= (x y &rest xs) (apply #'t2l::om>=v (append (list x y) xs)))
-(defmethod! ?= (x &rest xs) (apply #'t2l::om=v (append (list x) xs)))
-(defmethod! ?/= (x y &rest xs) (apply #'t2l::om/=v (append (list x y) xs)))
-(defmethod! ?equal (x y) (t2l::omequalv x y))
+(defmethod! ?< (x y &rest xs) (apply #'<v (append (list x y) xs)))
+(defmethod! ?> (x y &rest xs) (apply #'>v (append (list x y) xs)))
+(defmethod! ?<= (x y &rest xs) (apply #'<=v (append (list x y) xs)))
+(defmethod! ?>= (x y &rest xs) (apply #'>=v (append (list x y) xs)))
+(defmethod! ?= (x &rest xs) (apply #'=v (append (list x) xs)))
+(defmethod! ?/= (x y &rest xs) (apply #'/=v (append (list x y) xs)))
+(defmethod! ?equal (x y) (equalv x y))
 (defmethod! ?eql (xs ys) (t2l::omeqlv xs ys))
 (defmethod! ?not-eql (xs ys) (t2l::om!eqlv xs ys))
-(defmethod! ?between (x min max) (?and (?>= x min) (?<= x max)))
-(defmethod! ?<> (x from to) (?or (?< from x to) (?> from x to)))
-(defmethod! ?<>= (x from to) (?or (?<= from x to) (?>= from x to)))
-(defmethod! ?max (&rest xs) (apply #'t2l::ommaxv xs))
-(defmethod! ?min (&rest xs) (apply #'t2l::omminv xs))
+(defmethod! ?between (x min max) (andv (>=v x min) (<=v x max)))
+(defmethod! ?<> (x from to) (orv (<v from x to) (>v from x to)))
+(defmethod! ?<>= (x from to) (orv (<=v from x to) (>=v from x to)))
+(defmethod! ?max (&rest xs) (apply #'maxv xs))
+(defmethod! ?min (&rest xs) (apply #'minv xs))
 
 ;;;; assert!!
 (defmethod! assert!! (x &rest xs)
@@ -358,7 +355,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
                     (global
                      (setf count (1+ count))
                      (funcall onmatch (list (cons :count count)
-                                            (cons :timestamp (get-internal-real-time))
+                                            (cons :timestamp (get-universal-time))
                                             (cons :match soln))))
                     soln)))
 
@@ -394,6 +391,27 @@ directly nested in a call to ASSERT!, are similarly transformed.
   (unless (ground? xs)
     (fail))
   xs)
+
+(defun %v (n d)
+  (let ((x (-v n (*v d (an-integerv)))))
+    (assert! (integerpv x))
+    (assert! (<v x d))
+    (assert! (>=v x 0))
+    x))
+
+(cl:defun paradigm--modulo-calls-native-function ()
+  (screamer::defun %v (n d)
+    (let ((var (an-integer-betweenv 0 (1- d))))
+      (assert! (equalv var (funcallv #'mod n d)))
+      var)))
+
+(cl:defun paradigm--modulo-restricts-bounds ()
+  (screamer::defun %v (n d) 
+      (let ((x (-v n (*v d (an-integerv)))))
+        (assert! (integerpv x))
+        (assert! (<v x d))
+        (assert! (>=v x 0))
+        x)))
 
 (defun ?solution (x &key 
                     force-function
@@ -473,6 +491,32 @@ directly nested in a call to ASSERT!, are similarly transformed.
                                 :terminate-test terminate-test
                                 :order order 
                                 :onmatch onmatch)))))))
+
+(defmacro assert!!! (&rest xs)
+  (cond
+   ((null xs) (fail))
+   ((= 1 (length xs))
+    `(assert! ,(car xs)))
+   ((some #'functionp xs)
+    `(progn
+       ,@(assert!!!-internal-functionmode (car xs) (cdr xs))
+       (car ,xs)))
+   (T
+    `(progn
+       ,@(assert!!!-internal (butlast xs))
+       ,(car (last xs))))))
+
+(defun assert!!!-internal (xs)
+  (if (null xs)
+      nil
+    (append (list `(assert! ,(car xs)))
+            (assert!!!-internal (cdr xs)))))
+
+(defun assert!!!-internal-functionmode (input xs)
+  (if (null xs)
+      nil
+    (append (list `(assert! ,(funcall (car xs) input))
+            (assert!!!-internal input (cdr xs))))))
 
 (defun choice-box (list)
   (cond
@@ -613,9 +657,41 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defun map2func-nondeterministic (fn x y)
   (map2func-nondeterministic-internal fn x y))
 
+(defmacro assert!!! (&rest xs)
+  (cond
+   ((null xs) (fail))
+   ((= 1 (length xs))
+    `(assert! ,(car xs)))
+   ((some #'functionp xs)
+    `(progn
+       ,@(assert!!!-internal-functionmode (car xs) (cdr xs))
+       ,(car xs)))
+   (T
+    `(progn
+       ,@(assert!!!-internal (butlast xs))
+       ,(car (last xs))))))
+
+(defun assert!!!-internal (xs)
+  (if (null xs)
+      nil
+    (append (list `(assert! ,(car xs)))
+            (assert!!!-internal (cdr xs)))))
+
+(defun assert!!!-internal-functionmode (input xs)
+  (if (null xs)
+      nil
+    (append (list `(assert! ,(funcall (car xs) input))
+            (assert!!!-internal-functionmode input (cdr xs))))))
+
+(screamer::defmacro-compile-time ith-value-from (i expression)
+  `(if (= ,i 0) 
+       (fail)
+     (ith-value ,i ,expression (ith-value-from (1- ,i) ,expression))))
+
 (in-package :OPENMUSIC)
 
 (defmethod get-boxcallclass-fun ((self (eql 'assert!))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'assert!!!))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'value-of))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'apply-substitution))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'bound?))) 'screamerboxes)
@@ -657,6 +733,13 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod get-boxcallclass-fun ((self (eql '-v))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '*v))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '/v))) 'screamerboxes)
+
+(defmethod get-boxcallclass-fun ((self (eql 'a-boolean))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer-above))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer-below))) 'screamerboxes)
+
+(defmethod get-boxcallclass-fun ((self (eql '%v))) 'screamerboxes) 
 (defmethod get-boxcallclass-fun ((self (eql '?solution))) 'screamerboxes) 
 (defmethod get-boxcallclass-fun ((self (eql 'fail-unbound))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'choice-box))) 'screamerboxes)
@@ -667,7 +750,12 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod get-boxcallclass-fun ((self (eql 'map-func-nondeterministic))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'map2func-nondeterministic))) 'screamerboxes)
 
+(defmethod get-boxcallclass-fun ((self (eql 'ith-value-from))) 'screamer-valuation-boxes)
+(defmethod get-real-funname ((self (eql 'ith-value-from))) self)
+(defmethod! ith-value-from (i expression) (s::ith-value-from i expression))
+
 (defmethod! assert! (x) (s:assert! x))
+(defmethod! assert!!! (&rest xs) :icon 161 (eval `(assert!!! ,@xs)))
 (defmethod! value-of (x) (s:value-of x))
 (defmethod! apply-substitution (x) (s:apply-substitution x))
 (defmethod! bound? (x) (bound? x))
@@ -690,24 +778,30 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! >v (x &rest xs) (apply #'s:>v (append (list x) xs)))
 (defmethod! >=v (x &rest xs) (apply #'s:>=v (append (list x) xs)))
 (defmethod! /=v (x &rest xs) (apply #'s:/=v (append (list x) xs)))
-(defmethod! make-variable (&optional name) (s:make-variable name))
-(defmethod! a-booleanv (&optional name) (s:a-booleanv name))
-(defmethod! a-member-ofv (values &optional name) (s:a-member-ofv values name))
-(defmethod! a-numberv (&optional name) (s:a-numberv name))
-(defmethod! a-realv (&optional name) (s:a-realv name))
-(defmethod! a-real-abovev (low &optional name) (s:a-real-abovev low name))
-(defmethod! a-real-belowv (high &optional name) (s:a-real-belowv high name))
-(defmethod! a-real-betweenv (low high &optional name) (s:a-real-betweenv low high name))
-(defmethod! an-integerv (&optional name) (s:an-integerv name))
-(defmethod! an-integer-abovev (low &optional name) (s:an-integer-abovev low name))
-(defmethod! an-integer-belowv (high &optional name) (s:an-integer-belowv high name))
-(defmethod! an-integer-betweenv (low high &optional name) (s:an-integer-betweenv low high name))
+(defmethod! make-variable (&optional name) (if name (s:make-variable name) (s:make-variable)))
+(defmethod! a-booleanv (&optional name) (if name (s:a-booleanv name) (s:a-booleanv)))
+(defmethod! a-member-ofv (values &optional name) (if name (s:a-member-ofv values name) (s:a-member-ofv values)))
+(defmethod! a-numberv (&optional name) (if name (s:a-numberv name) (s:a-numberv)))
+(defmethod! a-realv (&optional name) (if name (s:a-realv name) (s:a-realv)))
+(defmethod! a-real-abovev (low &optional name) (if name (s:a-real-abovev low name) (s:a-real-abovev low)))
+(defmethod! a-real-belowv (high &optional name) (if name (s:a-real-belowv high name) (s:a-real-belowv high)))
+(defmethod! a-real-betweenv (low high &optional name) (if name (s:a-real-betweenv low high name) (s:a-real-betweenv low high)))
+(defmethod! an-integerv (&optional name) (if name (s:an-integerv name) (s:an-integerv)))
+(defmethod! an-integer-abovev (low &optional name) (if name (s:an-integer-abovev low name) (s:an-integer-abovev low)))
+(defmethod! an-integer-belowv (high &optional name) (if name (s:an-integer-belowv high name) (s:an-integer-belowv high)))
+(defmethod! an-integer-betweenv (low high &optional name) (s:an-integer-betweenv low high name) (s:an-integer-betweenv low high))
+
+(defmethod! a-boolean () (s:a-boolean))
+(defmethod! an-integer-above (low) (s:an-integer-above low))
+(defmethod! an-integer-below (high) (s:an-integer-below high))
+
 (defmethod! minv (x &rest xs) (apply #'s:minv (append (list x) xs)))
 (defmethod! maxv (x &rest xs) (apply #'s:maxv (append (list x) xs)))
 (defmethod! +v (&rest xs) (apply #'s:+v xs))
 (defmethod! -v (&rest xs) (apply #'s:-v xs))
 (defmethod! *v (&rest xs) (apply #'s:*v xs))
 (defmethod! /v (&rest xs) (apply #'s:/v xs))
+(defmethod! %v (n d) (s::%v n d))
 (defmethod! ?solution (x &key 
                     force-function
                     cost-fun
@@ -923,16 +1017,16 @@ Documentation from https://nikodemus.github.io/screamer/
 (defmethod! ?list/= (xs value) (list-compare-to-value #'?/= xs value))
 (defmethod! ?listeq (xs value) (list-compare-to-value #'?equal xs value))
 (defmethod! ?list!eq (xs value) (list-compare-to-value #'(lambda (x) (?not (?equal x value))) xs))
-(defmethod! ?all+ (xs) (apply #'t2l::om+v xs)) 
-(defmethod! ?all- (xs) (apply #'t2l::om-v xs))
-(defmethod! ?all* (xs) (apply #'t2l::om*v xs))
-(defmethod! ?all/ (xs) (apply #'t2l::om/v xs))
-(defmethod! ?all< (xs) (apply #'t2l::om<v xs))
-(defmethod! ?all<= (xs) (apply #'t2l::om<=v xs))
-(defmethod! ?all> (xs) (apply #'t2l::om>v xs))
-(defmethod! ?all>= (xs) (apply #'t2l::om>=v xs))
-(defmethod! ?all/= (xs) (apply #'t2l::om/=v xs))
-(defmethod! ?all= (xs) (apply #'t2l::om=v xs))
+(defmethod! ?all+ (xs) (apply #'+v xs)) 
+(defmethod! ?all- (xs) (apply #'-v xs))
+(defmethod! ?all* (xs) (apply #'*v xs))
+(defmethod! ?all/ (xs) (apply #'/v xs))
+(defmethod! ?all< (xs) (apply #'<v xs))
+(defmethod! ?all<= (xs) (apply #'<=v xs))
+(defmethod! ?all> (xs) (apply #'>v xs))
+(defmethod! ?all>= (xs) (apply #'>=v xs))
+(defmethod! ?all/= (xs) (apply #'/=v xs))
+(defmethod! ?all= (xs) (apply #'=v xs))
 (defmethod! ?all-different (x &rest xs)
   (labels ((all-different (x xs)
              (if (null xs)
@@ -943,8 +1037,22 @@ Documentation from https://nikodemus.github.io/screamer/
     (all-different x xs)))
 (defmethod! ?all-equal (xs) (map?and #'(lambda (ys) (t2l::omequalv (car ys) (cadr ys))) (combinations-of2 xs)))
 (defmethod! ?all/equal (xs) (map?and #'(lambda (ys) (t2l::omnotv (t2l::omequalv (car ys) (cadr ys)))) xs))
-(defmethod! ?all-between (xs min max)
-  (map?and #'(lambda (y) (?and (?>= y min) (?<= y max))) xs))
+(defmethod! ?all-between (list min max)
+  (map?and #'(lambda (y) (?and (?>= y min) (?<= y max))) (?xs-in list)))
+(defmethod! ?all-between!! (list min max)
+  :icon 1100
+  (cond
+   ((null list) nil)
+   ((not (consp list)) (?all-between!! (list list) min max))
+   (T
+    (let ((variables (?xs-in list)))
+      (unless (null min)
+        (dolist (x variables)
+          (assert! (>=v x min))))
+      (unless (null max)
+        (dolist (x variables)
+          (assert! (<=v x max)))))))
+  list)
 (defmethod! ?all<> (list from to) (map?and #'(lambda (x) (?<> x from to)) list))
 (defmethod! ?all<>= (list from to) (map?and #'(lambda (x) (?<>= x from to)) list))
 (defmethod! ?anyeq (xs value) (t2l::anyequalv xs value))
@@ -1041,10 +1149,8 @@ Documentation from https://nikodemus.github.io/screamer/
   (let* ((fundamental (or fundamental 0))
          (variables (?xs-in input)))
     (labels
-        ((notes-from (pcs)
-           (flatt (mapcar #'(lambda (y) (?list+ pcs y)) '(-12 0 12 24 36 48 60 72 84 96 112 124))))
-         (in-mode (pcs)
-           (?items-in variables (notes-from pcs) :numeric T)))
+        ((in-mode (pcs)
+           (?items-in (?list% variables 12) (?list% (?list+ pcs fundamental) 12) :numeric T)))
     (cond
      ((null xs) T)
      (T (map?or #'in-mode xs))))))
@@ -1679,35 +1785,6 @@ rule-definition function inputs
                                       (funcall defn (first entry) (second entry) (third entry)))
                                   (append (list definition) defns)))
                      fragments-to-process)))))))
-
-(cl:defun consecutive-open-intervals-2-internal-fn (voice2x)
-  (labels
-      ((lists=v (xs ys) (apply #'andv (mapcar #'(lambda (x y) (=v x y)) xs ys))))
-    (maplist?and
-     #'(lambda (chord-list)
-         (cond 
-          ((null chord-list) T)
-          ((not (cdr chord-list)) T)     
-          (T
-           (let ((chord1 (car chord-list)) (chord2 (cadr chord-list)))
-             (cond
-              ((has-null-values chord1) T)
-              ((has-null-values chord2) T)
-              ((equal chord1 chord2) T)
-              ((equal (car chord1) (car chord2)) T)
-              ((equal (cadr chord1) (cadr chord2)) T)
-              (T
-               (labels
-                   ((interval%12 (x y) (?% (-v y x) 12)))
-                 (let ((chords-repeat (andv (lists=v chord1 chord2)))
-                       (interval1 (interval%12 (car chord1) (cadr chord1)))
-                       (interval2 (interval%12 (car chord2) (cadr chord2))))
-                   (orv 
-                    (andv (notv (andv (=v interval1 7) (=v interval2 7)))
-                          (notv (andv (=v interval1 0) (=v interval2 0))))
-                    chords-repeat)))))))))
-     (mat-trans voice2x))))
-
 
 
 (defmethod! paradigm--enable-variable-cache-map () (t2l::enable-variable-cache-map))
