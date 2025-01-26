@@ -30,6 +30,7 @@
           (t2l::write*om-stream* "OK ")) t2l::*paradigm--library-files*)
 (t2l::write*om-stream* "... (~A)~%" (t2l::format-timestamp (get-universal-time)))
 (t2l::disable-variable-cache-map)
+(setf screamer:*strategy* :AC)
 (fill-library 
  '(("solver" 
     Nil 

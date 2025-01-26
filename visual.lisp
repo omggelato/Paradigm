@@ -336,6 +336,39 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (in-package :screamer)
 
 ;;;; SCREAMER:SOLUTION
+(defun ?solution (x &key onmatch save-matches-to-solver-output cut-after force-function cost-fun terminate-test order)
+  (let ((onmatch 
+         (cond (save-matches-to-solver-output
+                (cond (onmatch 
+                       #'(lambda (xs) 
+                           (let ((value (cdr (assoc :match xs))))
+                             (save-to-solver-output value))
+                           (funcall onmatch xs)))
+                      (T #'(lambda (xs) 
+                             (let ((value (cdr (assoc :match xs))))
+                               (save-to-solver-output value))))))
+                         (T #'(lambda (x) nil)))))
+    (cond
+     (cut-after
+      (let ((list
+             (n-values cut-after ; cycle-count
+                       (?solution-internal x 
+                          :force-function force-function
+                          :cost-fun cost-fun
+                          :terminate-test terminate-test
+                          :order order 
+                          :onmatch onmatch))))
+        (if list 
+            (car (reverse list))
+          nil)))
+     (T
+      (?solution-internal x 
+                          :force-function force-function
+                          :cost-fun cost-fun
+                          :terminate-test terminate-test
+                          :order order 
+                          :onmatch onmatch)))))
+
 (defun ?solution-internal (x &key 
                              force-function
                              cost-fun
@@ -359,138 +392,25 @@ directly nested in a call to ASSERT!, are similarly transformed.
                                             (cons :match soln))))
                     soln)))
 
-(defun interval-in-minutes (start-timestamp end-timestamp)
+(cl:defun interval-in-minutes (start-timestamp end-timestamp)
   (/ (/ (- end-timestamp start-timestamp) 1000) 60))
-
-(defun timestamp-in-minutes (timestamp)
+(cl:defun timestamp-in-minutes (timestamp)
   (/ (/ timestamp 1000) 60))
-
-(defun extract-screamer-variables (xs)
+(cl:defun extract-screamer-variables (xs)
   (cond 
    ((null xs) nil)
-   ((not (listp xs))
-    (extract-screamer-variables (list xs)))
-   (T
-    (remove-duplicates (remove-if-not #'variable? (t2l::flatt xs)) :from-end T))))
-
-(defun save-to-solver-output (value)
-  (global
+   ((not (listp xs)) (extract-screamer-variables (list xs)))
+   (T (remove-duplicates (remove-if-not #'variable? (t2l::flatt xs)) :from-end T))))
+(cl:defun save-to-solver-output (value)
    (if (null t2l::*findall2-values*)
        (setf t2l::*findall-last-value-cons* (list value)
              t2l::*findall2-values* t2l::*findall-last-value-cons*)
      (setf (rest t2l::*findall-last-value-cons*) (list value)
-           t2l::*findall-last-value-cons* (rest t2l::*findall-last-value-cons*)))))
-
-(defun clear-solver-output ()
-    (global
+           t2l::*findall-last-value-cons* (rest t2l::*findall-last-value-cons*))))
+(cl:defun clear-solver-output ()
      (progn
          (setf t2l::*findall2-values* '())
-         (setf t2l::*findall-last-value-cons* nil))))
-
-(defun fail-unbound (xs) 
-  (unless (ground? xs)
-    (fail))
-  xs)
-
-(defun %v (n d)
-  (let ((x (-v n (*v d (an-integerv)))))
-    (assert! (integerpv x))
-    (assert! (<v x d))
-    (assert! (>=v x 0))
-    x))
-
-(cl:defun paradigm--modulo-calls-native-function ()
-  (screamer::defun %v (n d)
-    (let ((var (an-integer-betweenv 0 (1- d))))
-      (assert! (equalv var (funcallv #'mod n d)))
-      var)))
-
-(cl:defun paradigm--modulo-restricts-bounds ()
-  (screamer::defun %v (n d) 
-      (let ((x (-v n (*v d (an-integerv)))))
-        (assert! (integerpv x))
-        (assert! (<v x d))
-        (assert! (>=v x 0))
-        x)))
-
-(defun ?solution (x &key 
-                    force-function
-                    cost-fun
-                    terminate-test 
-                    order 
-                    onmatch
-                    save-matches-to-solver-output
-                    abort-after 
-                    fail-after-count 
-                    fail-unbound)
-  
-  (when save-matches-to-solver-output
-    (t2l::reset-solver-registry))
-
-  (let* ((start-timestamp (get-universal-time))
-         (abort-timestamp (if abort-after
-                              (+ (* (* abort-after 60) 1000) start-timestamp)
-                            -1))
-         (match-count 0))
-    (let ((terminate-test (cond (abort-after #'(lambda (x)
-                                                 (let ((timestamp (get-universal-time)))
-                                                   (let ((terminate? (or (> timestamp abort-timestamp)
-                                                                         (and terminate-test
-                                                                              (funcall terminate-test x)))))
-                                                     (if terminate?
-                                                         (progn
-                                                           (print (t2l::format-with-timestamp 
-                                                                   " > more than ~A minutes since last match. aborting..." 
-                                                                   abort-after))
-                                                           (fail)))
-                                                     terminate?))))))
-          (onmatch (cond (save-matches-to-solver-output
-                          (cond (onmatch 
-                                 #'(lambda (xs) 
-                                     (let ((value (cdr (assoc :match xs))))
-                                        (save-to-solver-output value))
-                                     (funcall onmatch xs)))
-                                (T #'(lambda (xs) 
-                                       (let ((value (cdr (assoc :match xs))))
-                                         (save-to-solver-output value))))))
-                         (T onmatch))))
-      (let ((onmatch (cond (abort-after
-                            #'(lambda (xs) 
-                                (if onmatch (funcall onmatch xs))
-                                (global
-                                 (setf start-timestamp (get-universal-time))
-                                 (setf abort-timestamp (+ (* (* abort-after 60) 1000) start-timestamp)))))
-                           (T (if onmatch
-                                  onmatch
-                                #'(lambda (x) nil))))))
-                                
-        (cond
-         (fail-after-count
-          (cond
-           (save-matches-to-solver-output
-            (n-values 
-                fail-after-count
-              (?solution-internal x 
-                                  :force-function force-function
-                                  :cost-fun cost-fun
-                                  :terminate-test terminate-test
-                                  :order order 
-                                  :onmatch onmatch)))
-           (T
-            (ith-value
-                fail-after-count
-              (?solution-internal x 
-                                  :force-function force-function
-                                  :cost-fun cost-fun
-                                  :terminate-test terminate-test
-                                  :order order 
-                                  :onmatch onmatch)))))
-         (T (?solution-internal x 
-                                :force-function force-function
-                                :cost-fun cost-fun
-                                :terminate-test terminate-test
-                                :order order 
-                                :onmatch onmatch)))))))
+         (setf t2l::*findall-last-value-cons* nil)))
 
 (defmacro assert!!! (&rest xs)
   (cond
@@ -517,7 +437,26 @@ directly nested in a call to ASSERT!, are similarly transformed.
       nil
     (append (list `(assert! ,(funcall (car xs) input))
             (assert!!!-internal input (cdr xs))))))
+(defun %v (n d)
+  (let ((x (-v n (*v d (an-integerv)))))
+    (assert! (integerpv x))
+    (assert! (<v x d))
+    (assert! (>=v x 0))
+    x))
 
+(cl:defun paradigm--modulo-calls-native-function ()
+  (screamer::defun %v (n d)
+    (let ((var (an-integer-betweenv 0 (1- d))))
+      (assert! (equalv var (funcallv #'mod n d)))
+      var)))
+
+(cl:defun paradigm--modulo-restricts-bounds ()
+  (screamer::defun %v (n d) 
+      (let ((x (-v n (*v d (an-integerv)))))
+        (assert! (integerpv x))
+        (assert! (<v x d))
+        (assert! (>=v x 0))
+        x)))
 (defun choice-box (list)
   (cond
    ((null list) (fail))
@@ -683,10 +622,10 @@ directly nested in a call to ASSERT!, are similarly transformed.
     (append (list `(assert! ,(funcall (car xs) input))
             (assert!!!-internal-functionmode input (cdr xs))))))
 
-(screamer::defmacro-compile-time ith-value-from (i expression)
-  `(if (= ,i 0) 
-       (fail)
-     (ith-value ,i ,expression (ith-value-from (1- ,i) ,expression))))
+; (screamer::defmacro-compile-time ith-value-from (i expression)
+;   `(if (= ,i 0) 
+;        (fail)
+;      (ith-value ,i ,expression (ith-value-from (1- ,i) ,expression))))
 
 (in-package :OPENMUSIC)
 
@@ -741,7 +680,6 @@ directly nested in a call to ASSERT!, are similarly transformed.
 
 (defmethod get-boxcallclass-fun ((self (eql '%v))) 'screamerboxes) 
 (defmethod get-boxcallclass-fun ((self (eql '?solution))) 'screamerboxes) 
-(defmethod get-boxcallclass-fun ((self (eql 'fail-unbound))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'choice-box))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'function-choice-box))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'bt-group-list))) 'screamerboxes)
@@ -750,9 +688,9 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod get-boxcallclass-fun ((self (eql 'map-func-nondeterministic))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'map2func-nondeterministic))) 'screamerboxes)
 
-(defmethod get-boxcallclass-fun ((self (eql 'ith-value-from))) 'screamer-valuation-boxes)
-(defmethod get-real-funname ((self (eql 'ith-value-from))) self)
-(defmethod! ith-value-from (i expression) (s::ith-value-from i expression))
+; (defmethod get-boxcallclass-fun ((self (eql 'ith-value-from))) 'screamer-valuation-boxes)
+; (defmethod get-real-funname ((self (eql 'ith-value-from))) self)
+; (defmethod! ith-value-from (i expression) (s::ith-value-from i expression))
 
 (defmethod! assert! (x) (s:assert! x))
 (defmethod! assert!!! (&rest xs) :icon 161 (eval `(assert!!! ,@xs)))
@@ -802,32 +740,20 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! *v (&rest xs) (apply #'s:*v xs))
 (defmethod! /v (&rest xs) (apply #'s:/v xs))
 (defmethod! %v (n d) (s::%v n d))
-(defmethod! ?solution (x &key 
-                    force-function
-                    cost-fun
-                    terminate-test 
-                    order 
-                    onmatch
-                    save-matches-to-solver-output
-                    abort-after 
-                    fail-after-count 
-                    fail-unbound)
+(defmethod! ?solution (x &key onmatch save-matches-to-solver-output cut-after force-function cost-fun terminate-test order)
  :doc "
 Documentation from https://nikodemus.github.io/screamer/
 
 "
  :icon 150
  (s::?solution x 
+            :onmatch onmatch
+            :save-matches-to-solver-output save-matches-to-solver-output
+            :cut-after cut-after
             :force-function force-function
             :cost-fun cost-fun
             :terminate-test terminate-test
-            :order order
-            :onmatch onmatch
-            :save-matches-to-solver-output save-matches-to-solver-output
-            :abort-after abort-after
-            :fail-after-count fail-after-count
-            :fail-unbound fail-unbound))
-(defmethod! fail-unbound (xs) (s::fail-unbound xs))
+            :order order))
 (defmethod! choice-box (list) :icon 235 (s::choice-box list))
 (defmethod! function-choice-box (functions) :icon 147 (s::function-choice-box functions))
 (defmethod! bt-group-list (input groups) (s::bt-group-list input groups))
@@ -1046,13 +972,16 @@ Documentation from https://nikodemus.github.io/screamer/
    ((not (consp list)) (?all-between!! (list list) min max))
    (T
     (let ((variables (?xs-in list)))
-      (unless (null min)
-        (dolist (x variables)
-          (assert! (>=v x min))))
-      (unless (null max)
-        (dolist (x variables)
-          (assert! (<=v x max)))))))
-  list)
+      (cond 
+       ((null variables) list)
+       (T
+        (unless (null min)
+          (dolist (x variables)
+            (assert! (>=v x min))))
+        (unless (null max)
+          (dolist (x variables)
+            (assert! (<=v x max)))))))
+    list)))
 (defmethod! ?all<> (list from to) (map?and #'(lambda (x) (?<> x from to)) list))
 (defmethod! ?all<>= (list from to) (map?and #'(lambda (x) (?<>= x from to)) list))
 (defmethod! ?anyeq (xs value) (t2l::anyequalv xs value))
@@ -1072,6 +1001,25 @@ Documentation from https://nikodemus.github.io/screamer/
 (defmethod! ?count-trues-in-list (xs) :icon 235 (apply #'screamer:count-truesv (flatt xs)))
 (defmethod! ?items-in (list sequence &key numeric fast-crosscheck)
   (t2l::items-inv list sequence :numeric numeric :fast-crosscheck fast-crosscheck))
+(defmethod! ?items-in!! (list sequence &key numeric)
+  :icon 1100
+  (dolist (x (?xs-in list))
+    (assert! (memberv x sequence)))
+  list)
+(defmethod! phrase-modality-c (input fundamental modepcs)
+  :icon 908
+  (let ((sequence (reverse (sort (remove-duplicates (flatt (mapcar #'(lambda (x) (om+ modepcs x)) '(-12 0 12 24 36 48 60 72 84 96 112 124)))) #'<)))
+        (variables (?xs-in input)))
+    (format om-lisp::*om-stream* "phrase-modality-c: ~A" (if variables (length variables)))
+    (if (or (null variables) (null sequence))
+        T
+      (progn
+      (dolist (x variables)
+        (assert! (memberv x sequence))
+        (format om-lisp::*om-stream* "."))
+      
+      (format om-lisp::*om-stream* "~%")
+      input))))
 ; (defmethod get-boxcallclass-fun ((self (eql '?items-in))) 'omboxcall)
 
 (defmethod! ?items!in (list sequence &key numeric fast-crosscheck)
