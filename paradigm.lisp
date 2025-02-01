@@ -30,7 +30,8 @@
           (t2l::write*om-stream* "OK ")) t2l::*paradigm--library-files*)
 (t2l::write*om-stream* "... (~A)~%" (t2l::format-timestamp (get-universal-time)))
 (t2l::disable-variable-cache-map)
-(setf screamer:*strategy* :AC)
+(setf screamer:*strategy* :GFC)
+;(setf screamer:*strategy* :AC)
 (fill-library 
  '(("solver" 
     Nil 
@@ -108,8 +109,6 @@
      ?all<=
      ?all>=
      ?all/=
-     ?all<>
-     ?all<>=
      ?all-equal
      ?all/equal
      ?all=
@@ -174,6 +173,7 @@
      multiple-choice-list
      calltrain1x
      fuseseqc
+     merge-sequence-list
      eventsms
      sequence->poly
      sequence->voices

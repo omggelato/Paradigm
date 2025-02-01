@@ -7,11 +7,6 @@
 
 (in-package :t2l)
 
-(screamer::defmacro-compile-time ith-value-from (i expression)
-  `(if (= ,i 0) 
-       (fail)
-     (ith-value ,i ,expression (ith-value-from (1- ,i) ,expression))))
-
 (cl:defun map-func (fn list &key with-levels level-min level-max ignore-null-input)
 
   (unless (or (and (null level-min)
@@ -375,13 +370,6 @@
     (assert!!-variables (butlast (append (list x) xs)))
     (car (last xs))))))
 
-
-
-
-
-
-
-
 (cl:defun listdx (list)
   (butlast (maplist #'(lambda (x) 
                         (if (cdr x) 
@@ -400,7 +388,11 @@
                  (listdxv (cdr list))))
         (T nil)))
 
-(cl:defun absv (k) (ommaxv k (om*v k -1)))
+(cl:defun absv (k) (maxv k (*v k -1)))
+
+(cl:defun avgv (&rest xs) (/v (apply #'+v xs) (length xs)))
+
+(cl:defun list-avgv (list) (apply #'avgv list))
 
 (cl:defun omabsv (x)
   (vregister #'(lambda () (absv x))
@@ -518,7 +510,6 @@
   (let ((force-function-param 
          (cond ((null force-function) #'linear-force)
                ((functionp force-function) 
-                (print-warning " >>> FORCE-FUNCTION: ~A" force-function)
                 force-function)
                ((or (equal force-function 'om::lf)
                     (equal force-function 'om::linear-force)
@@ -589,7 +580,7 @@
         (second minute hour date month year day-of-week dst-p tz)
         (decode-universal-time timestamp)
       (concatenate 'string
-                   (format nil "~2,'0d:~2,'0d:~2,'0d ~d/~2,'0d "
+                   (format nil "~2,'0d:~2,'0d:~2,'0d ~d/~2,'0d"
                            hour minute second month date))))
 
 (cl:defun format-with-timestamp (message &rest arguments)
@@ -954,9 +945,11 @@
    (cond
     ((null *findall2-values*) 
      (setf *next-solver-output-cursor* -1)
+     (format om-lisp::*om-stream* "no next-solver-output!~%")
      nil)
     (T
-     (setf *next-solver-output-cursor* (min (1+ *next-solver-output-cursor*) (1- (length *findall2-values*))))
+     (setf *next-solver-output-cursor* (mod (1+ *next-solver-output-cursor*) (length *findall2-values*)))
+     (format om-lisp::*om-stream* "next-solver-output[~A of ~A]~%" (1+ *next-solver-output-cursor*) (length *findall2-values*))
      (elt *findall2-values* *next-solver-output-cursor*)))))
 
 (defun prev-solver-output (&optional catalog)
@@ -964,9 +957,11 @@
    (cond
     ((null *findall2-values*) 
      (setf *next-solver-output-cursor* -1)
+     (format om-lisp::*om-stream* "no prev-solver-output!~%")
      nil)
     (T
-     (setf *next-solver-output-cursor* (max (1- *next-solver-output-cursor*) 0))
+     (format om-lisp::*om-stream* "prev-solver-output[~A of ~A]~%" (1+ *next-solver-output-cursor*) (length *findall2-values*))
+     (setf *next-solver-output-cursor* (mod (1- *next-solver-output-cursor*) (length *findall2-values*)))
      (elt *findall2-values* *next-solver-output-cursor*)))))
 
 (cl:defun reset-solver-input (&optional xs) 
@@ -2267,33 +2262,33 @@
                            (notv x)
                            x)))
 
-;(cl:defun %v (n d) 
-;  (let ((x (an-integer-betweenv 0 (1- d)))
-;        (d*m (*v d (an-integerv))))
-;    (assert! (<=v d*m n))
-;    (assert! (=v x (-v n d*m)))
-;    x))
 (defvar *paradigm--modulo-function* nil)
+
+;(defvar *paradigm--modulo-calls-native-function* 
+;  #'(lambda (n d)
+;      (let ((var (an-integer-betweenv 0 (1- d))))
+;        (assert! (equalv var (funcallv #'mod n d)))
+;        var)))
+
 (defvar *paradigm--modulo-calls-native-function* 
-  #'(lambda (n d)
-      (let ((var (an-integer-betweenv 0 (1- d))))
-        (assert! (equalv var (funcallv #'mod n d)))
-        var)))
+  #'(lambda (n d) (funcallv #'mod n d)))
+
 (defvar *paradigm--modulo-restricts-bounds*
   #'(lambda (n d) 
       (let ((x (-v n (*v d (an-integerv)))))
         (assert! (integerpv x))
-        (assert! (<v x d))
         (assert! (>=v x 0))
+        (assert! (<v x d))
         x)))
+
 (setf *paradigm--modulo-function* *paradigm--modulo-restricts-bounds*)
-(cl:defun %v (n d) (s::%v n d))
-(cl:defun modv (n d) (%v n d))
+
+(cl:defun %v (n d) (funcall *paradigm--modulo-function* n d))
+
 (cl:defun om%v (n d)
   (or (lookup-solver-key #'om%v n d)
       (register-solver-key #'om%v (t2l::%v n d) n d)))
 
-(cl:defun ommodv (n d) (om%v n d))
 (cl:defun om+v (&rest xs)
   :icon 193  
   (or (apply #'lookup-solver-key 
@@ -2712,51 +2707,6 @@
                                (remove nil sequence)))
           (t
            (all-not-members-of list sequence)))))
-(cl:defun count-distinct-valuesv (xs)
-  :icon 176
-  (apply 
-   #'count-truesv 
-   (mapcar #'(lambda (ys)
-               (let ((x (car ys))
-                     (y (cadr ys)))
-                 (cond ((and (null x) (null y)) nil)
-                       ((null x) t)
-                       ((null y) t)
-                       ; ((not (ground? ys)) nil)
-                       (t (/=v x y)))))
-           (let ((rs 
-                  (remove-duplicates 
-                    (all-values
-                      (let ((x (a-member-of (flatt xs)))
-                            (y (a-member-of (flatt xs))))
-                        (unless (not (equalp x y))
-                          (fail))
-                        (list x y)))
-                    :test #'(lambda (xs ys)
-                              (and (find (car xs) ys)
-                                   (find (cadr xs) ys)
-                                   (find (car ys) xs)
-                                   (find (cadr ys) xs))))))
-             ; (assert! (ground? rs))
-             rs))))
-
-;(cl:defun all-integer-items-!inv (list sequence)
-;  :icon 235
-;  (labels
-;      ((all-not-members-of (xs sequence)
-;         (map-andv #'(lambda (x) (not-member-of-number-sequencev x sequence)) xs)))
-;    (cond ((null list) nil)
-;          ((null sequence) nil)
-;          ((and (some #'null list)
-;                (some #'null sequence))
-;           (all-not-members-of (remove nil list)
-;                           (remove nil sequence)))
-;          ((some #'null list) nil)
-;          ((some #'null sequence)
-;           (all-not-members-of list
-;                               (remove nil sequence)))
-;          (t
-;           (all-not-members-of list sequence)))))
 
 (cl:defun first-atom (xs)
   :icon 235
@@ -2774,9 +2724,6 @@
           ((listp x) 
            (map-func #'getnameof x))
           (t (getnameof x)))))
-
-(cl:defun all?variables-in (list) 
-  (remove-duplicates (remove nil (flatt list))))
 
 (cl:defun symxlat (list map)
   (map-func
@@ -2806,40 +2753,6 @@
                var))))
       (map-func #'lookxl keys))))
 
-(cl:defun intxlatv (keys map)
-  (let ((map-keys (mapcar #'car map))
-        (map-entr (remove-duplicates (flat1 (mapcar #'cdr map)))))
-    (let (; (mkmax (apply #'max map-keys))
-          ; (mkmin (apply #'min map-keys))
-          (memax (apply #'max map-entr))
-          (memin (apply #'min map-entr)))
-      ; (print (format nil "map-keys: ~A map-entr: ~A mkmin: ~A mkmax: ~A" map-keys map-entr mkmin mkmax))
-      (labels
-          ((lookxl (k)
-             ; (assert! (>=v k mkmin))
-             ; (assert! (<=v k mkmax))
-             (let ((var (an-integerv)))
-               (assert! (>=v var memin))
-               (assert! (<=v var memax))
-               (labels
-                   ((xlat (key entries) ;; generate rule for VAR
-                      (cond
-                       ((null entries) nil)
-                       (T (let ((entry (car entries)) 
-                                (key= (om=v key (caar entries))))
-                            (orv 
-                             (andv key= (items-inv var (cdr entry) :numeric T)); (ommemberv var (cdr entry)))
-                             (xlat key (cdr entries))))))))
-                 (assert! (xlat k map))
-                 var))))
-        (map-func #'lookxl keys :ignore-null-input T)))))
-
-(cl:defun reverse-xlatmap (map) 
-  (flat1 (mapcar #'(lambda (entry) (mapcar #'(lambda (k) (list k (car entry))) (cdr entry))) map)))
-
-(cl:defun xlatsymv (keys map) (symxlatv keys (reverse-xlatmap map)))
-(cl:defun xlatintv (keys map) (intxlatv keys (reverse-xlatmap map)))
-
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -2852,8 +2765,8 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;           variables registry
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(defvar *solver-keys* nil)
-(defvar *register-solver-keys* T)
+(defvar *solver-keys* NIL)
+(defvar *register-solver-keys* NIL)
 (defvar *sk-seteql-functions* (list #'ommaxv 
                                     #'omminv
                                     #'omandv
@@ -2865,9 +2778,8 @@
   #'(lambda (list1 list2)
       (and (equalp (car list1) (car list2))
            (seteql (cdr list1) (cdr list2)))))
-(defvar *sk-member-of-functions* (list 
-                                  #'ommemberv
-                                  #'member-of-sequencev
+(defvar *sk-member-of-functions* (list #'ommemberv
+                                       #'member-of-sequencev
                                        #'member-of-number-sequencev
                                        #'not-member-of-sequencev
                                        #'not-member-of-number-sequencev
