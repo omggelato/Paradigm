@@ -1,537 +1,7 @@
-(in-package :SCREAMER)
 
-(defun ?variables-in (input) 
-  (remove-duplicates 
-   (remove-if-not #'(lambda (y) (screamer::variable? y)) 
-                  (remove nil (flatt (list input)))) :from-end T))
+;;; imported extensions  prolog-union prolog-intersect prolog-difference prolog-delete prolog+v3 prolog/v3 prolog*v3 prolog-v3 setof
+(in-package :t2l)
 
-(defun ?xs-in (input)
-  (remove-duplicates
-   (remove-if-not #'(lambda (y) 
-                      (and y
-                           (or (symbolp y) (numberp y) (screamer::variable? y))))
-                  (flatt (list input))) :from-end T))
-
-(defun flatt (x)
-  (append
-   (cond
-    ((null x) nil)
-    ((and (consp x) (consp (car x)))
-     (flatt (car x)))
-    ((consp x)
-     (list (car x)))
-    (T (list x)))
-   (if (and (consp x) 
-            (cdr x))
-       (flatt (cdr x)) 
-     NIL)))
-
-; x &rest xs functions
-(defun ?oper-arguments (x list) (flatt (append (list x) list)))
-
-(cl:defun rewrite-?template (template map)
-  (let ((sequence-numbers '()))
-    (labels
-        ((designates-variable? (x)
-           (and x (symbolp x) (> (length (string x)) 1) (char= #\? (aref (string x) 0))))
-         (increment-sym? (x) (char= #\+ (aref (string x) (1- (length (string x))))))
-         (continue-sym? (x) (char= #\# (aref (string x) (1- (length (string x))))))
-         (symbol-parts (x)
-           (cond
-            ((and x (symbolp x))
-             (let ((name (string x))
-                   (i -1)
-                   prefix
-                   label
-                   sequence-no)
-               (setf prefix (if (char= #\? (aref name 0)) '? nil))
-               (if (>= (length name) 3)
-                   (loop for j from 1
-                         for k = (- (length name) j)
-                         while (and (<= j (length name))
-                                    (parse-integer (subseq name k (1+ k)) :junk-allowed T)) do 
-                           (setf i k)))
-               (setf sequence-no
-                     (if (= i -1)
-                         (if (or (increment-sym? x) (continue-sym? x))
-                             (intern (subseq name (1- (length name)) (length name)))
-                           nil)
-                       (multiple-value-bind (n r) (parse-integer (subseq name i (length name))) n)))
-               (setf label (intern (subseq name (if prefix 1 0) (if (= i -1) (if sequence-no (1- (length name)) (length name)) i))))
-               (values prefix label sequence-no))))))
-
-      (map-func #'(lambda (x) 
-                    (if (designates-variable? x)
-                        (cl:multiple-value-bind (prefix label sequence-no) (symbol-parts x)
-                          (if (and sequence-no (not (increment-sym? x)) (not (continue-sym? x)))
-                              (cond 
-                               ((and (assoc label sequence-numbers)
-                                     (> sequence-no (cdr (assoc label sequence-numbers))))
-                                (rplacd (assoc label sequence-numbers) sequence-no))
-                               ((not (assoc label sequence-numbers))
-                                (push (cons label sequence-no) sequence-numbers))
-                               (T T))))))
-                template)
-
-      (map-func #'(lambda (x) 
-                    (if (designates-variable? x)
-                        (cl:multiple-value-bind (prefix label sequence-no) (symbol-parts x)
-                          (if (not (assoc label sequence-numbers))
-                              (push (cons label 0) sequence-numbers)))))
-                template)
-      
-      (map-func #'(lambda (x)
-                    (cond 
-                     ((designates-variable? x)
-                        (cl:multiple-value-bind (prefix label sequence-no) (symbol-parts x)
-                          (cond
-                          ((continue-sym? x)
-                           (intern (format nil "?~A~A" (string label) (cdr (assoc label sequence-numbers))) (symbol-package x)))
-                          ((increment-sym? x)
-                           (rplacd (assoc label sequence-numbers) (1+ (cdr (assoc label sequence-numbers))))
-                           (intern (format nil "?~A~A" (string label) (cdr (assoc label sequence-numbers))) (symbol-package x)))
-                          ((and map (assoc x map))
-                           (cdr (assoc x map)))
-                          (T x))))
-                     (T x)))
-                template))))
-
-(defun ?template (template &optional map)
-  (cl:multiple-value-bind (xs vars) 
-      (if map 
-          (screamer::template-internal (rewrite-?template template map) map)
-        (screamer:template (rewrite-?template template map)))
-    (values xs vars)))
-
-;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro any!! (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,x))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(progn 
-           (assert! (orv ,variables))
-           ,input))))))
-
-(defmacro all!! (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,@args))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
-
-(defmacro and!! (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,@args))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
-
-(defmacro every!! (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,@args))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
-
-(defmacro assert!!-and (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,x))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
-(defmacro assert!!-and-internal (x &rest ys)
-  `(progn
-     ,@(mapcar #'(lambda (fn) `(assert! ,fn)) ys)
-     ,x))
-
-(defmacro assert!! (x &rest ys)
-  (if *nondeterministic-context?*
-      `(assert!!-nondeterministic-functionmode ,x ,@ys)
-  `(assert!!-funcall-mode ,x ,@ys)))
-
-(defun assert!!-funcall-mode (x &rest fns)
-  (cond
-   ((null fns) x)
-   ((not (functionp (car fns)))
-    (apply #'assert!!-funcall-mode x (cdr fns)))
-   (T
-    (assert! (funcall (car fns) x))
-    (apply #'assert!!-funcall-mode x (cdr fns)))))
-
-(defun assert!!-nondeterministic-functionmode (x &rest fns)
-  (cond
-   ((null fns) x)
-   ((and (not (nondeterministic-function? (car fns)))
-         (not (functionp (car fns))))
-    (apply-nondeterministic #'assert!!-nondeterministic-functionmode x (cdr fns)))
-   (T
-    (assert! (funcall-nondeterministic (car fns) x))
-    (apply-nondeterministic #'assert!!-nondeterministic-functionmode x (cdr fns)))))
-
-(defmacro apply?cont (x y &rest ys)
-  (let ((args (loop for i from 0 while (<= i (1+ (length ys))) collect
-                      (cond
-                       ((= i 0) x)
-                       ((= i 1) y)
-                       (T (nth (- i 2) ys))))))
-    (let ((input x)
-          (functions (loop for i from 0 while (< i (1- (length args))) collect (nth (1+ i) args))))
-  (if *nondeterministic-context?*
-      `(assert!!-nondeterministic-functionmode ,input ,@functions)
-  `(assert!!-funcall-mode ,input ,@functions)))))
-
-;; ?solution
-(defun ?solution (x &key onmatch save-matches cut-after abort-after force-fun cost-fun terminate? order)
-  (let ((force-fun 
-         (cond
-          ((null force-fun) #'linear-force)
-          ((functionp force-fun) force-fun)
-          ((find (symbol-name force-fun) '("lf" "linear-force")) #'linear-force)
-          ((find (symbol-name force-fun) '("dacf" "divide-and-conquer-force")) #'divide-and-conquer-force)
-          (T #'linear-force))))
-  (cond
-   ((and (null onmatch) 
-         (null save-matches) 
-         (null cut-after)
-         (null abort-after)
-         (null cost-fun)
-         (null terminate?)
-         (null order))
-    (solution x (static-ordering force-fun)))
-
-   ;;;; 
-   (T
-    (let ((default-cost-fun (let ((variables (remove-duplicates (variables-in (value-of x)) :from-end T)))
-                              #'(lambda (y) (or (position y variables) 100))))
-          (default-terminate-test #'(lambda (y) (declare (ignore y)) nil))
-          (match-count 0)
-          (cycle-count 0)
-          (start-timestamp (get-universal-time)))
-      (let (abort-timestamp abort?)
-        (let ((terminate? (cond
-                           (abort-after
-                            (setf abort-timestamp (+ start-timestamp (round (* abort-after 60 1))))
-                            (cond 
-                             (terminate?
-                              #'(lambda (y)
-                                  (incf cycle-count) 
-                                  (or (setf abort? (> (get-universal-time) abort-timestamp))
-                                      (funcall terminate? y))))
-                             (T #'(lambda (y) 
-                                    (incf cycle-count) 
-                                    (setf abort? (> (get-universal-time) abort-timestamp))))))
-                           (T (or terminate? 
-                                  #'(lambda (y) 
-                                      (declare (ignore y)) 
-                                      (incf cycle-count) 
-                                      nil)))))
-
-              (cost-fun
-               (cond 
-                ((null cost-fun) default-cost-fun)
-                ((functionp cost-fun) cost-fun)
-                ((find (symbol-name cost-fun) '("domain-size" "domain")) #'domain-size)
-                ((find (symbol-name cost-fun) '("range-size" "range")) #'range-size)
-                (T default-cost-fun)))
-
-              (order
-               (cond
-                ((null order) #'<)
-                ((functionp order) order)
-                ((string= (symbol-name order) "<") #'<)
-                ((string= (symbol-name order) ">") #'>)
-                (T #'<)))
-
-              (onmatch 
-               (cond 
-                ((and 
-                  save-matches 
-                  (find-package :OPENMUSIC)
-                  (typep save-matches (find-symbol "STORE" :OPENMUSIC)))
-                 (fecho "...SOLUTION-->~A (~Ax, ~A ~A)~%~%"
-                        save-matches
-                        (length (?variables-in (list x))) 
-                        (paradigm--format-timestamp start-timestamp)
-                        (if abort-timestamp
-                            (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
-                          ""))
-                 (cond 
-                  (onmatch 
-                   #'(lambda (xs) 
-                       (unless (not (find-package :OPENMUSIC))
-                         (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) save-matches (cdr (assoc :match xs))))
-                       (paradigm--save-to-solver-output (cdr (assoc :match xs)))
-                       (funcall onmatch xs)))
-                  (T #'(lambda (xs) 
-                         (unless (not (find-package :OPENMUSIC))
-                           (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) save-matches (cdr (assoc :match xs))))
-                         (paradigm--save-to-solver-output (cdr (assoc :match xs)))))))
-                
-                (save-matches
-                 (fecho 
-                         "...SOLUTION-->(SOLVER-OUTPUT) (~Ax, ~A ~A)~%~%" 
-                         (length (?variables-in (list x))) 
-                         (paradigm--format-timestamp start-timestamp)
-                         (if abort-timestamp
-                             (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
-                           ""))
-                 (cond 
-                  (onmatch 
-                   #'(lambda (xs) 
-                       (paradigm--save-to-solver-output (cdr (assoc :match xs)))
-                       (funcall onmatch xs)))
-                  (T #'(lambda (xs) 
-                         (paradigm--save-to-solver-output (cdr (assoc :match xs)))))))
-
-                (T (if onmatch
-                       onmatch
-                     #'(lambda (x) nil))))))
-
-          (cond
-           (cut-after
-            (first 
-             (reverse
-              (n-values 
-               cut-after 
-               (let ((value
-                      (solution x (reorder cost-fun 
-                                           terminate?
-                                           order
-                                           force-fun))))
-                 (when abort?
-                   (fail))
-                 (if abort-after
-                     (progn
-                       (setf start-timestamp (get-universal-time))
-                       (setf abort-timestamp (+ start-timestamp (round (* abort-after 60 1))))
-                       (setf abort? nil)))
-                 (funcall onmatch (list (cons :match-count (incf match-count))
-                                        (cons :cycle-count cycle-count)
-                                        (cons :timestamp start-timestamp)
-                                        (cons :match value)))
-                 value)))))
-           (T
-            (let ((value
-                   (solution x (reorder cost-fun
-                                        terminate?
-                                        order
-                                        force-fun))))
-              (when abort?
-                (fail))
-              (funcall onmatch (list (cons :match-count (incf match-count))
-                                     (cons :cycle-count cycle-count)
-                                     (cons :timestamp start-timestamp)
-                                     (cons :match value)))
-              value))))))))))
-
-(defvar *echo-stream* (if (find-package :OM-LISP) 
-                          (find-symbol "*om-stream*" :om-lisp)
-                        *standard-output*))
-
-(defun fecho (message &rest args)
-  (apply #'format 
-         (append (list *echo-stream* (concatenate 'string message "~%")) args)))
-
-
-(cl:defun paradigm--format-timestamp (timestamp)
-    (multiple-value-bind
-        (second minute hour date month year day-of-week dst-p tz)
-        (decode-universal-time timestamp)
-      (concatenate 'string
-                   (format nil "~2,'0d:~2,'0d:~2,'0d ~d/~2,'0d"
-                           hour minute second month date))))
-
-;(defun paradigm--save-to-solver-output (value)
-;  (global
-;    (if (null t2l::*findall2-values*)
-;        (setf t2l::*findall-last-value-cons* (list value)
-;              t2l::*findall2-values* t2l::*findall-last-value-cons*)
-;      (setf (rest t2l::*findall-last-value-cons*) (list value)
-;
-;            t2l::*findall-last-value-cons* (rest t2l::*findall-last-value-cons*)))))
-;  T)
-
-;(defun paradigm--clear-solver-output ()
-;  (global
-;    (setf t2l::*findall2-values* '())
-;    (setf t2l::*findall-last-value-cons* nil)))
-;  T)
-
-
-
-
-;; from screamer docs:
-(defun a-partition-of (x)
-  (if (null x)
-      x
-    (let ((y (a-partition-of (rest x))))
-      (either
-        (cons (list (first x)) y)
-        (let ((z (a-member-of y)))
-          (cons (cons (first x) z) (remove z y :test #'eq :count 1)))))))
-
-(defun an-ordered-partition-of (x)
-  (cond ((null x) nil)
-        ((null (cdr x)) (list x))
-        (t 
-         (let ((y (an-ordered-partition-of (rest x))))
-           (either
-             (cons (list (first x)) y)
-             (cons (cons (first x) (first y)) (rest y)))))))
-
-(defun n-partitions-of-idx-list-internal2 (s cs)  
-  (cond
-   ((and (> s 0) (null cs)) (fail))
-   ((null cs) nil)
-   ((< s 0) (fail))
-   ((< s (apply #'+ (mapcar #'car cs))) (fail))
-   ((and (every #'cdr cs)
-         (> s (apply #'+ (mapcar #'cdr cs)))) (fail))
-   (t
-    (let ((c (car cs)))
-      (let ((min (car c))
-            (max (cond
-                  ((cdr c) (min (cdr c) (- s (apply #'+ (mapcar #'car (cdr cs))))))
-                  (t (- s (apply #'+ (mapcar #'car (cdr cs))))))))
-        (let ((a (an-integer-between min max)))
-          (append (list a)
-                  (n-partitions-of-idx-list-internal2 (- s a) (cdr cs)))))))))
-
-(defun n-partitions-of2 (cs x)
-  (let ((s (n-partitions-of-idx-list-internal2 (length x) cs)))
-    (cond
-     ((null s) nil)
-     (t
-      (reverse 
-       (maplist #'(lambda (is) 
-                    (let ((a (- (length x) (apply #'+ is)))
-                          (b (- (length x) (if (cdr is) (apply #'+ (cdr is)) 0))))
-                      (subseq x a b)))
-                (reverse s)))))))
-
-(defun flat1 (list)
-  (cond ((null list) nil)
-        ((and (listp list)
-              (every #'listp list))
-         (apply #'append list))
-        ((listp list)
-         (flat1 (mapcar #'(lambda (x) (cond ((listp x) x)
-                                            (t (list x))))
-                        list)))
-        (t list)))
-
-(defun list-structure-equal (list1 list2 &key test)
-  (let ((test (or test #'(lambda (x y) (or (and (null x) (null y))
-                                           (and x y))))))
-    (labels
-        ((list-structure-equal-internal (list1 list2)
-         (cond ((and (null list1)
-                     (null list2)) T)
-
-               ((or (null list1)
-                    (null list2)) (return-from list-structure-equal nil))
-
-               ((and (not (consp list1))
-                     (not (consp list2))) T)               
-               
-               ((or (not (consp list1))
-                    (not (consp list2))) (return-from list-structure-equal nil))
-
-               ((and (consp (car list1))
-                     (consp (car list2)))
-                (and (list-structure-equal-internal (car list1) (car list2))
-                     (list-structure-equal-internal (cdr list1) (cdr list2))))
-
-               ((or (consp (car list1))
-                    (consp (car list2))) (return-from list-structure-equal nil))
-
-               (T (and (funcall test (car list1) (car list2))
-                       (list-structure-equal-internal (cdr list1) (cdr list2)))))))
-      (list-structure-equal-internal list1 list2))))
-
-(defun list-depth (list)
-  (let ((depth 0))
-    (labels
-        ((list-depth-internal (list level)
-           (cond 
-            ((not (consp list)) nil)
-            (T
-             (if (> level depth)
-                 (setf depth level))
-             (list-depth-internal (car list) (if (consp (car list)) (1+ level) level))
-             (list-depth-internal (cdr list) level)))))
-      (list-depth-internal list 1)
-      depth)))
-
-(defun flatt (x)
-  (append
-   (cond
-    ((null x) nil)
-    ((not (consp (car x))) (list (car x)))
-    (T (flatt (car x))))
-   (if (cdr x)
-       (flatt (cdr x)))))
-
-(defun group-list-on (test sequence)
-  (let ((test (or test #'equalp)))
-    (labels
-        ((group-sequence (group-list group seqc)                        
-           (cond ((null seqc) (append group-list (list group)))
-                 ((null group) 
-                  (group-sequence group-list (list (car seqc)) (cdr seqc)))
-                 ((not (funcall test (last-item group) (car seqc)))
-                  (group-sequence (append group-list (list group)) nil seqc))
-                 (T (group-sequence group-list (append group (list (car seqc))) (cdr seqc)))))
-         (last-item (list) (car (last list))))
-      (group-sequence nil nil sequence))))
-
-(defun ?=any (x sequence)
-  (cond
-   ((null sequence) T)
-   (T (orv (=v x (car sequence))
-           (?=any x (cdr sequence))))))
-
-(defun mat-trans (matrix)
-  (when matrix
-    (apply #'mapcar #'list matrix)))
-   
-;;; (imported from screamer docs) prolog-union prolog-intersect prolog-difference prolog-delete prolog+v3 prolog/v3 prolog*v3 prolog-v3 setof
 (defun prolog-union (y z w)
   (either 
     (let ((a (make-variable))
@@ -551,6 +21,7 @@
       (assert! (equalv z w)))))
 
 (defun prolog-intersect (y m z)
+  (if (>= *print-warnings-level* 30) (print (list 'prolog-intersect 'y y 'm m 'z z)))
   (either
     (progn 
       (assert! (equalv y nil))
@@ -742,6 +213,15 @@
       ;(assert! (equalv z z1))
       (prolog-reverse-append x1 y1 z))))
 
+(defun cons-atomsv (l c)
+  (prolog-maplist3 (lambda (x)
+                     (cond ((funcallv #'consp x) x)
+                           (t (cons x nil))))
+                   l
+                   c))
+
+
+
 (defun prolog-flatten (l f)
   (let ((f1 (make-variable)))
     (prolog-flatten3 l nil f1)))
@@ -794,7 +274,6 @@
       (progn 
         (assert! (=v f l))
         (equalv subseq nil)))))
-
 ;;	list_to_set(+List, ?Set) is det.
 ;
 ;	True when Set has the same elements  as  List in the same order.
@@ -806,8 +285,8 @@
   (let ((set0 (make-variable)))
     (prolog-remove-duplicates-internal list set0)
     (assert! (equalv set set0))))
-
 (defun prolog-remove-duplicates-internal (list set)
+  (print (list 'prolog-remove-duplicates-internal 'list list 'set set))
   (either
     (progn
       (assert! (equalv list nil))
@@ -832,6 +311,7 @@
           (b (make-variable)))
       (assert! (equalv list (cons a b)))
       (prolog-close-list b))))
+
 
 
 (defun prolog-subset (x y)
@@ -889,7 +369,6 @@
         (r1 (make-variable)))
     (assert! (equalv r (cons h r1)))
     (prolog-rotate-list3 l r1 h)))
-
 (defun prolog-rotate-list3 (l r h)
   (either 
     (progn 
@@ -901,6 +380,8 @@
       (assert! (equalv l (cons a l1)))
       (assert! (equalv r (cons a r1)))
       (prolog-rotate-list3 l1 r1 h))))
+  
+
 
 (defun prolog-member? (e x s)
   (either
@@ -974,6 +455,8 @@
     (unless (or (< (length s) 5)
               (null (set-difference s s1))) (fail))
     s1))
+    
+    
 
 (defun prolog-nperms (n y z &optional debug fail-form)
   (prolog-nperms4 n y z (an-integer-between 0 512) debug fail-form))
@@ -993,6 +476,7 @@
                                   fail-form))
                      tmp1
                      z)))
+
 
 (defun prolog-insert (elem list1 list2)
   (either
@@ -1080,7 +564,6 @@
 
 (defun prolog-maplist (fn list &rest args)
   (prolog-maplist-internal fn list args))
-
 (defun prolog-maplist-internal (fn list args)
   (either 
     (progn 
@@ -1110,7 +593,6 @@
 ;  ; Ms = [F|_], 
 ;    transpose(F, Ms, Ts)
 ;  ).
-
 (defun prolog-mapn (fn ms)
   (either 
     (progn 
@@ -1182,7 +664,6 @@
       (assert! (equalv list2 (cons e f)))
       (funcall-nondeterministic fn a c e)
       (prolog-map3 fn b d f))))
-
 ;  maplist(_C, [], []).
 ;  maplist( C, [X|Xs], [Y|Ys]) :-
 ;     call(C, X, Y),
@@ -1235,6 +716,15 @@
       (assert! (equalv hr (cons a r0)))
       (assert! (equalv r  (cons a r1)))
       (prolog-nth n1 r0 h r1))))
+
+(defun dolistv (fn l)
+  (either 
+    (assert! (equalv nil l))
+    (let ((a (make-variable))
+          (l1 (make-variable)))
+      (assert! (equalv l (cons a l1)))
+      (dolistv fn l1)      
+      (funcall-nondeterministic fn a))))
 
 ;  maplist(_C, [], []).
 ;  maplist( C, [X|Xs], [Y|Ys]) :-
@@ -1453,6 +943,97 @@
       (assert! (equalv z (cons a z1)))
       (prolog-concatenate x1 y z1))))
 
+
+(defun eltv (sequence index seqc2) ;iiffy
+  (either 
+    (progn 
+      (assert! (equalv index nil))
+      (assert! (equalv seqc2 nil))
+      nil)
+    (progn
+      (assert! (=v index 0))
+      (prolog-first sequence seqc2)
+      t)
+    (let ((a (make-variable))
+          (seq1 (make-variable)))
+      (assert! (equalv sequence (cons a seq1)))
+      (eltv seq1 (-v index 1) seqc2))))
+
+(defun countv (obj &optional (nil-equals-zero t))
+  (let ((n (an-integerv)))
+    (countv2 obj n nil-equals-zero)
+    n))
+
+(defun countv2 (obj n &optional (nil-equals-zero t))
+  (cond ((funcallv #'null obj)
+         (assert! (=v n (if nil-equals-zero 0 1))))
+        ((funcallv #'consp obj)
+         (let ((n1 (an-integerv))
+               (n2 (an-integerv)))
+           (countv2 (funcallv #'car obj) n1 nil-equals-zero)
+           (countv2 (funcallv #'cdr obj) n2 nil-equals-zero)
+           (assert! (=v n (+v n1 n2)))))
+        (t (assert! (=v n 1)))))
+
+(defun lengthv2 (obj n)
+  (assert! (integerpv n))
+  (cond ((funcallv #'null obj)
+         (assert! (=v n 0)))
+        ((funcallv #'consp obj)
+         (let ((n1 (an-integerv)))
+           (lengthv2 (funcallv #'cdr obj) n1)
+           (assert! (=v n (+v n1 1)))))
+        (t (assert! (=v n 1)))))
+
+(defun has-consv (sequence)
+  (let ((var (make-variable)))
+    (prolog-has-consv sequence var)
+    var))
+
+(defun prolog-has-consv (sequence has-cons)
+  (assert! (memberv has-cons (list t nil)))
+  (either
+    (progn 
+      (assert! (equalv nil sequence))
+      (assert! (equalv nil has-cons)))
+    (progn
+      (let ((s1 (make-variable))
+            (s2 (make-variable)))
+        (either 
+          (progn 
+            (assert! (equalv sequence (cons s1 s2)))
+            (either 
+              (progn 
+                (assert! (funcallv #'consp s1))
+                (assert! (equalv has-cons t)))
+              (let ((h1 (make-variable)))
+                (assert! (funcallv #'atom s1))
+                (prolog-has-consv s2 h1)
+                (assert! (equalv has-cons h1)))))          
+          (progn 
+            (assert! (funcallv #'atom sequence))
+            (assert! (equalv has-cons nil))))))))
+
+(defun list-eltv (sequence index-list list) ; iffy
+  (let* ((a (make-variable))
+         (b (prolog-reverse index-list a)))
+    (list-eltv-internal sequence a list)))
+
+(defun list-eltv-internal (sequence index-list list)
+  (either 
+    (progn 
+      (assert! (equalv index-list nil))
+      nil)
+    (let ((index-list1 (make-variable))
+          (index (make-variable))
+          (elem (make-variable))
+          (list1 (make-variable)))
+      (let ((a (eltv sequence index elem)))
+        (assert! (equalv index-list (cons index index-list1)))
+        (let ((b (prolog-append list1 (list elem) list)))
+          (assert! (notv (equalv elem nil)))
+          (list-eltv-internal sequence index-list1 list1))))))
+
 (defun a-subset-of (x)
   (if (null x)
       nil
@@ -1482,7 +1063,7 @@
                             v))
                       list))
         (perms (all-values (a-permutation-of list))))
-    (assert! (reduce
+    (assert! (reduce-chunks
               #'orv                            
               (mapcar #'(lambda (p) (lists=v p vars))
                       perms)))
@@ -1501,4 +1082,83 @@
                (unless (funcall test x (car (reverse (car p)))) (fail))
                (append (reverse (cdr (reverse (car p))))
                        (cadr p))))))))
+  
+(defun a-partition-of (x)
+  (if (null x)
+      x
+    (let ((y (a-partition-of (rest x))))
+      (either
+        (cons (list (first x)) y)
+        (let ((z (a-member-of y)))
+          (cons (cons (first x) z) (remove z y :test #'eq :count 1)))))))
 
+(defun an-ordered-partition-of (x)
+  (cond ((null x) nil)
+        ((null (cdr x)) (list x))
+        (t 
+         (let ((y (an-ordered-partition-of (rest x))))
+           (either
+             (cons (list (first x)) y)
+             (cons (cons (first x) (first y)) (rest y)))))))
+
+(defun n-partitions-of-idx-list-internal (n s)
+  (cond
+   ((> n s) (fail))
+   ((= n 1) (list s))   
+   ((> n 1)
+    (let ((i (an-integer-between 1 (- s (1- n)))))
+      (append (list i) (n-partitions-of-idx-list-internal (1- n) (- s i)))))
+   (t
+    nil)))
+
+(defun n-partitions-of-idx-list-internal2 (s cs)  
+  (cond
+   ((and (> s 0) (null cs)) (fail))
+   ((null cs) nil)
+   ((< s 0) (fail))
+   ((< s (apply #'+ (mapcar #'car cs))) (fail))
+   ((and (every #'cdr cs)
+         (> s (apply #'+ (mapcar #'cdr cs)))) (fail))
+   (t
+    (let ((c (car cs)))
+      (let ((min (car c))
+            (max (cond
+                  ((cdr c) (min (cdr c) (- s (apply #'+ (mapcar #'car (cdr cs))))))
+                  (t (- s (apply #'+ (mapcar #'car (cdr cs))))))))
+        (let ((a (an-integer-between min max)))
+          (append (list a)
+                  (n-partitions-of-idx-list-internal2 (- s a) (cdr cs)))))))))
+
+(defun n-partitions-of2 (cs x)
+  (let ((s (n-partitions-of-idx-list-internal2 (length x) cs)))
+    (cond
+     ((null s) nil)
+     (t
+      (reverse 
+       (maplist #'(lambda (is) 
+                    (let ((a (- (length x) (apply #'+ is)))
+                          (b (- (length x) (if (cdr is) (apply #'+ (cdr is)) 0))))
+                      (subseq x a b)))
+                (reverse s)))))))
+
+(defun n-partitions-of (n x &optional minimum-partition-length)
+  (let ((partitions
+         (let ((s (n-partitions-of-idx-list-internal n (length x))))
+           (cond
+            ((null s) nil)
+            (t
+             (reverse 
+              (maplist #'(lambda (is) 
+                           (let ((a (- (length x) (apply #'+ is)))
+                                 (b (- (length x) (if (cdr is) (apply #'+ (cdr is)) 0))))
+                             (subseq x a b)))
+                       (reverse s))))))))
+    (if minimum-partition-length
+        (mapcar #'(lambda (xs) (if (< (length xs) minimum-partition-length) (fail)))
+                partitions))
+    partitions))
+
+(defun an-expanded-list-rec (len templates &key randomize-choices)
+  (either    
+    (mapcar #'(lambda (x) (if randomize-choices (a-random-member-ofv templates) (a-member-ofv templates))) (make-sequence 'list len))
+    (an-expanded-list-rec (1+ len) templates :randomize-choices randomize-choices)))

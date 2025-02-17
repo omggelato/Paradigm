@@ -10,9 +10,7 @@
   :initvals '(((1 2 3 4 5 6 7)) (4 4) (8 (1 1)) nil nil nil nil)
   :icon 252
   :doc "'events-measure returns (openmusic or enp format) tree, beats, beat sizes, pulses in each beat for a given durations series, the time signature list, designating a  series of measures or a default time signature, and an input for the unit time interval for the excerpt"
-  (t2l::scale-ms-events durations time-signature-list modulus :enp enp :list-mode list-mode :print-warnings print-warnings :proportional-mode proportional-mode))
-
-(in-package :t2l)
+  (scale-ms-events durations time-signature-list modulus :enp enp :list-mode list-mode :print-warnings print-warnings :proportional-mode proportional-mode))
 
 (cl:defun consecutive-open-intervals! (sequence)
   (print (format nil "CONSECUTIVE-OPEN-INTERVALS"))
@@ -151,6 +149,182 @@
     ;(print (format nil "process-duration-groups timepoints-scaled ~A" timepoints-scaled))
     ;(print (format nil "important! beat-partitions: ~A" beat-partitions))
     (process-duration-groups-internal (flat beat-partitions) timepoints-scaled)))
+
+(cl:defstruct timee value flag)
+
+(cl:defun setf-timee-value (x d)
+  (cond ((listp (timee-value x))
+         (setf (car (timee-value x)) d))
+        (t 
+         (setf (timee-value x) d))))
+
+(cl:defun scale-to-int (ll)
+  (cond ((numberp ll)
+         (cond ((< ll 0) -1)
+               ((= ll 0) 0)
+               (t 1)))
+        (t
+         (cond ((= (length ll) 0) (list (scale-to-int 0)))
+               ((= (length ll) 1) (list (scale-to-int (car ll))))
+               (t 
+                (let* ((gcm (gcm (mapcar (lambda (x)
+                                             (if (rationalp x)
+                                                 (denominator x)
+                                               1))
+                                           (mapcar #'rationalize ll))))
+                       (r (om* ll gcm))
+                       (gcd1 (gcd1 r)))
+                  (values (mapcar
+                           #'(lambda (x y)
+                               (cond ((floatp x) (float y))
+                                     (t y)))
+                           ll
+                           (mapcar #'floor (om/ r gcd1)))
+                          gcm
+                          gcd1)))))))
+
+(cl:defun gcm (&rest n)
+  (cond ((listp (car n))
+         (apply #'gcm (car n)))
+        (t (apply #'*
+                  (mapcar (lambda (x) 
+                            (apply #'expt x))
+                          (remove-duplicates
+                           (sort (apply #'append (mapcar #'prime-facts n))
+                                 (lambda (x y)
+                                   (cond ((= (car x) (car y))
+                                          (> (cadr x) (cadr y)))
+                                         (t (< (car x) (car y))))))
+                           :test #'= 
+                           :key #'car
+                           :from-end t))))))
+
+(cl:defun prime-facts (x) ; copied from om::prime-facts 
+  (let ((ip 1) (r) (n 0))
+    (loop while (and (> x 1) 
+                     (<= (* (aref *prime-numbers* ip) 
+                            (aref *prime-numbers* ip))
+                         x)) do
+      (when (= 0 (mod x (aref *prime-numbers* ip)))
+        (setq n 1)
+        (loop while (= 0 
+                       (progn (setq x (/ x (aref *prime-numbers* ip))) 
+                              (mod x (aref *prime-numbers* ip)))) do
+              (incf n))
+        (push  (list (aref *prime-numbers* ip) n) r))
+      (incf ip))
+    (when (/= x 1)   (push  (list x 1) r))
+    (or (reverse r) (list (list 1 1)))))
+
+(cl:defun gcd1 (&rest n)
+  (cond ((listp (car n))
+         (apply #'gcd1 (car n)))
+        (t (let* ((factors (mapcar #'prime-facts n))
+                  (shared-terms (reduce #'intersection 
+                                        (mapcar (lambda (x)
+                                                  (mapcar #'car x))
+                                                factors)))
+                  (shared-factors (mapcan (lambda (x)
+                                            (if (position (car x) shared-terms)
+                                                (list x)))
+                                          (apply #'append factors))))  
+             (apply #'*
+                    (mapcar (lambda (x) 
+                              (apply #'expt x))
+                            (remove-duplicates
+                             (sort shared-factors
+                                   (lambda (x y)
+                                     (cond ((= (car x) (car y))
+                                            (< (cadr x) (cadr y)))
+                                           (t (< (car x) (car y))))))
+                             :test #'= 
+                             :key #'car
+                             :from-end t)))))))
+
+(cl:defun treelen (ll)
+  (cond ((null ll) 0)
+	((null (car ll)) (+ 0 (treelen (cdr ll))))
+	((listp (car ll)) (+ (treelen (car ll)) (treelen (cdr ll))))
+	(t (+ 1 (treelen (cdr ll))))))
+
+(cl:defun list2int (ll)
+  (cond ((null ll) nil)	
+	((listp ll) (cond ((cdr ll) (append (list2int (car ll)) (list2int (cdr ll))))
+			  (t (list2int (car ll)))))
+	(t (let ((flll (car (multiple-value-list (floor ll)))))
+	     (cond ((listp flll) (list (car flll)))
+		   (t (list flll)))))))
+
+(cl:defun to-fractn (n)
+  (reduce-fractn n 1))		
+
+(cl:defun reduce-fractn (n d)
+  (if (not (= (mod n 1) 0))
+      (reduce-fractn (* n 10) (* d 10))
+    (let ((fs (remove 1 (intersection (ftor n) (ftor d)))))
+      (if fs
+          (let ((gcf (list-max fs)))
+            (reduce-fractn (/ n gcf) (/ d gcf)))
+        (list n d)))))
+		    
+(cl:defun to-om-ms-den-list (ms)
+  (to-ms-den-list ms))
+
+(cl:defun to-ms-den-list (ms)
+  (if (car ms) (append (list (car (cdr (car ms)))) (to-ms-den-list (cdr ms))) nil))
+
+(cl:defun test-merge-ms-partns (partns groups)
+  (merge-ms-partns partns groups))
+
+(cl:defun merge-ms-partns (partns groups)
+  (setq grouprz (if (> (treelen partns) (treelen groups))
+		    (append groups (make-sequence 'list
+                                                  (- (treelen partns) (treelen groups)) 
+                                                  :initial-element (list -1)))
+		  groups))
+  (if (car partns)
+      (append (list (merge-partn-group (car partns) (subseq grouprz 0 (length (car partns)))))
+	      (merge-ms-partns (cdr partns) (nthcdr (length (car partns)) grouprz)))
+    nil))
+(cl:defun merge-partn-group (partn group) 
+  (if (car partn)
+      (append (list (list (car partn) (car group))) (merge-partn-group (cdr partn) (cdr group)))
+    nil))
+;(cl:defun to-ms-numr-list (ms den)
+;		(to-ms-numr-list (print ms) (car den)))		
+(cl:defun to-ms-numr-list (ms den)
+  (if (car ms)
+      (append (list (to-ms-numr (car ms) den)) (to-ms-numr-list (cdr ms) den))
+    nil))
+;(cl:defun to-ms-numr (ms den)
+;  (to-ms-numr ms (car den)))
+(cl:defun to-ms-numr (ms den)
+  (* (car ms) (/ den (car (cdr ms)))))
+(cl:defun list-fnappl (fn ll)
+  (cond ((cdr ll) (funcall fn (car ll) (list-fnappl fn (cdr ll))))
+	(t (car ll))))
+(cl:defun prcs-ms-timepoint-signatures (ms partns &key list-mode)
+  (if (car ms)
+      (append (list (append (list (cond (list-mode ms)
+                                        (t (format-mssign (car ms)))))
+			    (list (car partns)))) 
+	      (prcs-ms-timepoint-signatures (cdr ms) (cdr partns)))
+    nil))
+(cl:defun format-mssign (ms)
+  (read-from-string (concatenate 'string (write-to-string (car ms)) "//" (write-to-string (cadr ms)))))
+
+(cl:defun contains-list (ll)
+  (cond ((null ll) nil)
+        ((listp ll) (or (listp (car ll))
+                        (contains-list (cdr ll))))
+        (t nil)))
+
+(cl:defun contains-atom (ll)
+  (cond ((null ll) nil)
+        ((listp ll) (or (atom (car ll))
+                        (contains-atom (cdr ll))))
+        (t nil)))
+
 
 (cl:defun process-duration-groups-internal (l segs)
   ;(print (format nil "ENTER process-duration-groups-internal l: ~A segments: ~A" l segs))
@@ -323,7 +497,7 @@
       ((find-sumof (xs) (apply #'+ (flat xs))))
     (cond ((null e) nil)
           (t (screamer:one-value 
-              (an-expanded-list keys #'(lambda (x) (= (find-sumof x) e))))))))
+              (screamer-user::an-expanded-list keys #'(lambda (x) (= (find-sumof x) e))))))))
 
 (cl:defun sequence->note-names (sequence)
   :icon 138
@@ -560,7 +734,7 @@
   ;(if (some #'listp (remove nil durations))
   ;    (setf durations (list durations)))
   ; replacing the measure list where the input is just one measure '(4 4) instead of a list of time signatures i.e. ((5 4) (3 4) (3 4) (4 4)))
-  (let* ((ms (cond ((< (list-depth time-signature-list) 2) ; figure out how many bars fit the rhythm if it isn't already given as a list a time signatures 
+  (let* ((ms (cond ((< (om::list-depth time-signature-list) 2) ; figure out how many bars fit the rhythm if it isn't already given as a list a time signatures 
                    (let* ((timepoints 
                            (reduce 
                             #'max 
@@ -862,7 +1036,5 @@
                               (list (prcs-ms-timepoint-signatures ms partns-mrg)))))))
         ;(values tree partns-mrg partns beats)))))
         tree))))
-
-
 
 
