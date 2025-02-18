@@ -10,7 +10,6 @@
             "calculations"
             "comparisons"
             "transformations" 
-            "mapprules" 
             "general"
             "eventsms"
             "flatten seqc"
