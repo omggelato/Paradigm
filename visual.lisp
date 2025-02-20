@@ -127,8 +127,8 @@ directly nested in a call to ASSERT!, are similarly transformed.
 
 (defmethod! apply?cont (x &rest xs) -1)
 (defmethod! and!! (x &rest xs) -1)
-(defmethod! every!! (x &rest xs) -1)
-(defmethod! any!! (x &rest xs) -1)
+(defmethod! every!! (x &rest xs) :icon 161 -1)
+(defmethod! any!! (x &rest xs) :icon 161 -1)
 (defmethod! all!! (x &rest xs) -1)
 (defmethod! assert!!-and (x &rest xs) -1)
 (defmethod! choice-box (list) :icon 235 (s::choice-box list))

@@ -592,7 +592,8 @@
                                                 (push (list (cons r xs) var) or-sym-xs-assoc)
                                                 var)))))))
                                   (t nil))))
-                            (andv (apply #'andv (mapcar #'(lambda (x) (memberv x terminals)) vars)) (maprule vars (mpr-name dmg))))))))))))))))))
+                            (assert! (andv (apply #'andv (mapcar #'(lambda (x) (memberv x terminals)) vars)) (maprule vars (mpr-name dmg))))
+                            list)))))))))))))))
 
 
 

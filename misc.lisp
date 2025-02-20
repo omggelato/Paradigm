@@ -121,7 +121,7 @@
 
 (in-package :OPENMUSIC)
 (defmethod! group-seqc-by-motion-type (sequence)
-  :icon 908
+  :icon 261
   (let (fragments)
     (labels
         ((group-sequence (sequence)

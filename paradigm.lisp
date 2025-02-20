@@ -25,8 +25,10 @@
                            hour minute second month date))))
 (setf screamer::*echo-stream* *om-stream*)
 (fill-library 
- '(("utility" 
+ '(("sequences" 
     Nil 
     Nil 
-    (om:mat-trans ) 
+    (om::group-seqc-by-motion-type
+     om::flatten-seqc
+     om::mat-trans) 
     Nil)))
