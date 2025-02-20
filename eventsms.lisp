@@ -42,90 +42,6 @@
           (mat-trans (flatten-seqc voice1-2))))
      (combinations-of2 sequence)))
   sequence)
-              
-(cl:defun parallel-motion1 (sequence)
-  :icon 908
-  (let ((chord-intervals (mapcar #'(lambda (chord) (mapcar #'(lambda (interval) (%v (absv (-v (cadr interval) (car interval))) 12)) chord)) (mapcar #'(lambda (xs) (mapcar #'(lambda (ys) (remove-if #'has-null-values ys)) xs)) (mapcar #'combinations-of2 (mat-trans (flatten-seqc sequence)))))))
-    (apply
-     #'andv
-     (maplist #'(lambda (xs)
-                  (cond ((cdr xs)
-                         (andv
-                          (notv
-                           (andv (memberv 7 (car xs))
-                                 (memberv 7 (cadr xs))))
-                          (notv 
-                           (andv (memberv 0 (car xs))
-                                 (memberv 0 (cadr xs))))))
-                        
-                        (T T)))
-              chord-intervals))))
-
-(cl:defun open-intervals-1 (list)
-  :icon 908
-  (labels
-      ((all-note-pairs-in (chord) (remove-if #'has-null-values (combinations-of2 chord)))
-       (in-both (list1 list2)
-         (remove-duplicates
-          (remove-if-not #'(lambda (xs) (and (find xs list1) (find xs list2))) (append list1 list2))))
-       (interval%12 (x y) (om%v (absv (om-v y x)) 12))
-       (no-consecutive-open-intervals-in (chords-list interval)
-         (maplist-andv
-          #'(lambda (chords)
-              (cond
-               ((not (cdr chords)) T)
-               (T
-                (let ((chord1 (car chords))
-                      (chord2 (cadr chords)))
-                  (let ((intervals1 (all-note-pairs-in chord1))
-                        (intervals2 (all-note-pairs-in chord2)))
-                    (let ((repeats (in-both intervals1 intervals2)))
-                      (alert2 (format nil "intervals1 ~A intervals2 ~A repeats: ~A" intervals1 intervals2 repeats))
-                      (let ((intervals1 (remove-if #'(lambda (xs) (find xs repeats)) intervals1))
-                            (intervals2 (remove-if #'(lambda (xs) (find xs repeats)) intervals2)))
-                        (or (null intervals1)
-                            (null intervals2)
-                            (let ((intervals%121 (mapcar #'(lambda (xs) (apply #'interval%12 xs)) intervals1))
-                                  (intervals%122 (mapcar #'(lambda (xs) (apply #'interval%12 xs)) intervals2)))
-                              (map-andv #'(lambda (x) 
-                                            (map-andv #'(lambda (y)
-                                                          (omnotv
-                                                           (omandv
-                                                            (om=v x interval)
-                                                            (om=v y interval))))
-                                                      intervals%122))
-                                        intervals%121))))))))))
-          chords-list))
-
-       (no-consecutive-octaves-in (list) 
-         (map-andv
-          #'(lambda (seqc)
-              (maplist-andv
-               #'(lambda (chords)
-                   (cond
-                    ((not (cdr chords)) T)
-                    ((has-null-values (car chords)) T)
-                    ((has-null-values (cdr chords)) T)
-                    (T
-                     (omorv
-                      (om=v (car (car chords)) (car (cadr chords)))
-                      (om=v (cadr (car chords)) (cadr (cadr chords)))
-                      (omnotv
-                       (omandv (om=v (apply #'interval%12 (car chords)) 0) 
-                               (om=v (apply #'interval%12 (cadr chords)) 0)))))))
-               (mat-trans (flatten-seqc seqc))))
-          (combinations-of2 list))))
-          
-    (let ((chords (mat-trans (flatten-seqc list))))
-      (omandv (no-consecutive-open-intervals-in chords 7)
-              (no-consecutive-octaves-in list)))))
-;      (omandv (no-consecutive-open-intervals chords 7)
-;              (no-consecutive-open-intervals chords 0)))))
-
-
-
-
-
 
 (cl:defun process-duration-groups (ms timepoints modulus ratio &key proportional-mode)
   :initvals '(((5 8) (6 8) (7 8) (4 8)) (1 2 3 4 5 6 7 8 9 10) 16 (3 2) nil)
@@ -240,13 +156,11 @@
                              :test #'= 
                              :key #'car
                              :from-end t)))))))
-
 (cl:defun treelen (ll)
   (cond ((null ll) 0)
 	((null (car ll)) (+ 0 (treelen (cdr ll))))
 	((listp (car ll)) (+ (treelen (car ll)) (treelen (cdr ll))))
 	(t (+ 1 (treelen (cdr ll))))))
-
 (cl:defun list2int (ll)
   (cond ((null ll) nil)	
 	((listp ll) (cond ((cdr ll) (append (list2int (car ll)) (list2int (cdr ll))))
@@ -254,10 +168,8 @@
 	(t (let ((flll (car (multiple-value-list (floor ll)))))
 	     (cond ((listp flll) (list (car flll)))
 		   (t (list flll)))))))
-
 (cl:defun to-fractn (n)
-  (reduce-fractn n 1))		
-
+  (reduce-fractn n 1))
 (cl:defun reduce-fractn (n d)
   (if (not (= (mod n 1) 0))
       (reduce-fractn (* n 10) (* d 10))
@@ -265,17 +177,13 @@
       (if fs
           (let ((gcf (list-max fs)))
             (reduce-fractn (/ n gcf) (/ d gcf)))
-        (list n d)))))
-		    
+        (list n d)))))		    
 (cl:defun to-om-ms-den-list (ms)
   (to-ms-den-list ms))
-
 (cl:defun to-ms-den-list (ms)
   (if (car ms) (append (list (car (cdr (car ms)))) (to-ms-den-list (cdr ms))) nil))
-
 (cl:defun test-merge-ms-partns (partns groups)
   (merge-ms-partns partns groups))
-
 (cl:defun merge-ms-partns (partns groups)
   (setq grouprz (if (> (treelen partns) (treelen groups))
 		    (append groups (make-sequence 'list
@@ -324,7 +232,6 @@
         ((listp ll) (or (atom (car ll))
                         (contains-atom (cdr ll))))
         (t nil)))
-
 
 (cl:defun process-duration-groups-internal (l segs)
   ;(print (format nil "ENTER process-duration-groups-internal l: ~A segments: ~A" l segs))
