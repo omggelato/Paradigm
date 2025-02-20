@@ -296,12 +296,13 @@
                    #'(lambda (xs) 
                        (unless (not (find-package :OPENMUSIC))
                          (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) save-matches (cdr (assoc :match xs))))
-                       (paradigm--save-to-solver-output (cdr (assoc :match xs)))
+                       ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
                        (funcall onmatch xs)))
                   (T #'(lambda (xs) 
                          (unless (not (find-package :OPENMUSIC))
                            (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) save-matches (cdr (assoc :match xs))))
-                         (paradigm--save-to-solver-output (cdr (assoc :match xs)))))))
+                         ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
+                         ))))
                 
                 (save-matches
                  (fecho 

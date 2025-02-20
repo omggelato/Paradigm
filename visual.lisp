@@ -173,17 +173,47 @@ directly nested in a call to ASSERT!, are similarly transformed.
                 x)
       NIL))))
 
-(defmethod! choice-box (list) :icon 235 (s::choice-box list))
-(defmethod! function-choice-box (functions) :icon 147 (s::function-choice-box functions))
-(defmethod! bt-group-list (input groups) (s::bt-group-list input groups))
-(defmethod! multiple-choice-list (template &rest choice-list) (apply-nondeterministic #'s::multiple-choice-list (append (list template) choice-list)))
+(defmethod! collect-to ((self store) value &key first)
+  (labels
+      ((append-to (store value)
+         (cond
+          ((null (slot-value self 'value))
+           (setf (slot-value self 'value) (list value))
+           (set-slot self 'value (slot-value self 'value)))
+          ((not (consp (slot-value self 'value)))
+           (setf (slot-value self 'value) (list (slot-value self 'value)))
+           (append-to self value))
+          ((and (consp (slot-value self 'value))
+                (cdr (slot-value self 'value))
+                (not (consp (cdr (slot-value self 'value))))) ; x . y
+           (setf (cdr (slot-value self 'value)) (list (slot-value self 'value)))
+           (append-to self value))
+          (T
+           (rplacd (last (slot-value self 'value)) (list value))
+           (set-slot self 'value (slot-value self 'value))))
+         value)
+       (insert-into (store value)
+         (cond
+          ((and (slot-value self 'value)
+                (not (consp (slot-value self 'value))))
+           (setf (slot-value self 'value) (list (slot-value self 'value)))
+           (insert-into self value))
+          (T 
+           (push value (slot-value self 'value))    
+           (set-slot self 'value (slot-value self 'value))))
+         value))
+    (if first
+        (insert-into self value)
+      (append-to self value))))
+
+(defmethod! reset-store ((self store)) :icon 237
+  (set-slot self 'value nil))
+
 (defmethod! grouplist-nondeterministic (list min-groupsize max-groupsize wpartitioncount wmeangroupsize wdeviation wdistancefrommedian)
   :icon 235 
   :indoc '("list" "min-groupsize" "max-groupsize" "wpartitioncount" "wmeangroupsize" "wdeviation" "wdistancefrommedian")
   :initvals '(nil 1 5 0 1 1 -1)
   (s::grouplist-nondeterministic min-groupsize max-groupsize wpartitioncount wmeangroupsize wdeviation wdistancefrommedian))
-(defmethod! calltrain1x (function-sequence argument-sequence) :icon 147 (s::calltrain1x function-sequence argument-sequence))
-
 
 (defmethod! has-null-values (x)
   :icon 235            
