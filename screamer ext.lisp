@@ -217,7 +217,7 @@
   `(assert!!-funcall-mode ,input ,@functions)))))
 
 ;; ?solution
-(defun ?solution (x &key onmatch save-matches cut-after abort-after force-fun cost-fun terminate? order)
+(defun ?solution (x &key onmatch collect-to cut-after abort-after force-fun cost-fun terminate? order)
   (let ((force-fun 
          (cond
           ((null force-fun) #'linear-force)
@@ -227,7 +227,7 @@
           (T #'linear-force))))
   (cond
    ((and (null onmatch) 
-         (null save-matches) 
+         (null collect-to) 
          (null cut-after)
          (null abort-after)
          (null cost-fun)
@@ -281,44 +281,46 @@
               (onmatch 
                (cond 
                 ((and 
-                  save-matches 
+                  collect-to 
                   (find-package :OPENMUSIC)
-                  (typep save-matches (find-symbol "STORE" :OPENMUSIC)))
-                 (fecho "...SOLUTION-->~A (~Ax, ~A ~A)~%~%"
-                        save-matches
-                        (length (?variables-in (list x))) 
-                        (paradigm--format-timestamp start-timestamp)
-                        (if abort-timestamp
-                            (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
-                          ""))
+                  (typep collect-to (find-symbol "STORE" :OPENMUSIC)))
+                 ;(fecho "...SOLUTION-->~A (~Ax, ~A ~A)~%~%"
+                 ;       collect-to
+                 ;       (length (?variables-in (list x))) 
+                 ;       (paradigm--format-timestamp start-timestamp)
+                 ;       (if abort-timestamp
+                 ;           (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
+                 ;         ""))
                  (cond 
                   (onmatch 
                    #'(lambda (xs) 
                        (unless (not (find-package :OPENMUSIC))
-                         (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) save-matches (cdr (assoc :match xs))))
+                         (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs))))
                        ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
                        (funcall onmatch xs)))
                   (T #'(lambda (xs) 
                          (unless (not (find-package :OPENMUSIC))
-                           (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) save-matches (cdr (assoc :match xs))))
+                           (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs))))
                          ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
                          ))))
                 
-                (save-matches
-                 (fecho 
-                         "...SOLUTION-->(SOLVER-OUTPUT) (~Ax, ~A ~A)~%~%" 
-                         (length (?variables-in (list x))) 
-                         (paradigm--format-timestamp start-timestamp)
-                         (if abort-timestamp
-                             (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
-                           ""))
+                (collect-to
+                 ;(fecho 
+                 ;        "...SOLUTION-->(SOLVER-OUTPUT) (~Ax, ~A ~A)~%~%" 
+                 ;        (length (?variables-in (list x))) 
+                 ;        (paradigm--format-timestamp start-timestamp)
+                 ;        (if abort-timestamp
+                 ;            (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
+                 ;          ""))
                  (cond 
                   (onmatch 
                    #'(lambda (xs) 
-                       (paradigm--save-to-solver-output (cdr (assoc :match xs)))
+                       ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
                        (funcall onmatch xs)))
                   (T #'(lambda (xs) 
-                         (paradigm--save-to-solver-output (cdr (assoc :match xs)))))))
+                         ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
+                         T
+                         ))))
 
                 (T (if onmatch
                        onmatch

@@ -82,7 +82,7 @@
 (defmethod! ?funcall (f &rest xs)
   (apply #'s:funcallv (append (list f) xs)))
 
-(defmethod! ?solution (x &key onmatch save-matches cut-after abort-after force-fun cost-fun terminate? order)
+(defmethod! ?solution (x &key onmatch collect-to cut-after abort-after force-fun cost-fun terminate? order)
  :doc "
 Documentation from https://nikodemus.github.io/screamer/
 
@@ -90,7 +90,7 @@ Documentation from https://nikodemus.github.io/screamer/
  :icon 150
  (s::?solution x 
             :onmatch onmatch
-            :save-matches save-matches
+            :collect-to collect-to
             :cut-after cut-after
             :abort-after abort-after
             :force-fun force-fun
