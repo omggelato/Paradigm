@@ -622,7 +622,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! ?list= (x value) (s::?list= x value)) 
 (defmethod! ?list/= (x value) (s::?list/= x value))
 (defmethod! ?lists= (xs ys) (s::?lists= xs ys))
-(defmethod! ?lists/= (xs ys) (s::?lists/= xs ys))\
+(defmethod! ?lists/= (xs ys) (s::?lists/= xs ys))
 (defmethod! one?= (x sequence) (s::one?= x sequence))
 (defmethod! each?=oneof (x sequence) (s::each?=oneof x sequence))
 
