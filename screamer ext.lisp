@@ -1,16 +1,46 @@
 (in-package :SCREAMER)
 
-(defun ?variables-in (input) 
-  (remove-duplicates 
-   (remove-if-not #'(lambda (y) (screamer::variable? y)) 
-                  (remove nil (flatt (list input)))) :from-end T))
+(defun ?variables-in (x) (reverse (?variables-in-internal x '())))
+
+(defun ?variables-in-internal (x variables)
+  (cond
+   ((null x) variables)
+   ((screamer::variable? x)
+    (if (find x variables :test #'eq)
+        variables
+      (cons x variables)))
+   ((consp x)
+    (?variables-in-internal (cdr x) (?variables-in-internal (car x) variables)))
+   (T variables)))
 
 (defun ?xs-in (input)
-  (remove-duplicates
-   (remove-if-not #'(lambda (y) 
-                      (and y
-                           (or (symbolp y) (numberp y) (screamer::variable? y))))
-                  (flatt (list input))) :from-end T))
+  (?xs-in-internal input '()))
+
+(defun ?xs-in-internal (x variables)
+  (cond
+   ((null x) variables)
+   ((or (symbolp x) (numberp x) (screamer::variable? x))
+    (if (find x variables :test #'eq)
+        variables
+      (cons x variables)))
+   ((consp x)
+    (?xs-in-internal (cdr x) (?xs-in-internal (car x) variables)))
+   (T variables)))
+
+(defun ?numbers-in-internal (x variables)
+  (cond
+   ((null x) variables)
+   ((or (numberp x) (screamer::variable? x))
+    (if (find x variables :test #'eq)
+        variables
+      (cons x variables)))
+   ((consp x)
+    (?numbers-in-internal (cdr x) (?numbers-in-internal (car x) variables)))
+   (T variables)))
+
+(defun ?numbers-in (x)
+  (?numbers-in-internal x '()))
+
 
 (defun flatt (x)
   (append
@@ -25,9 +55,6 @@
             (cdr x))
        (flatt (cdr x)) 
      NIL)))
-
-; x &rest xs functions
-(defun ?oper-arguments (x list) (flatt (append (list x) list)))
 
 (cl:defun rewrite-?template (template map)
   (let ((sequence-numbers '()))
@@ -104,49 +131,7 @@
     (values xs vars)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;
-(defmacro any!! (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,x))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(progn 
-           (assert! (orv ,variables))
-           ,input))))))
 
-(defmacro all!! (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,@args))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
-
-(defmacro and!! (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,@args))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
 
 (defmacro every!! (x &rest ys)
   (let ((args (loop for i from 0 while (<= i (length ys)) collect
@@ -175,9 +160,11 @@
       (let ((input (elt ys (1- (length ys))))
             (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
         `(assert!!-and-internal ,input ,@variables))))))
+
 (defmacro assert!!-and-internal (x &rest ys)
   `(progn
-     ,@(mapcar #'(lambda (fn) `(assert! ,fn)) ys)
+     ,@(mapcar #'(lambda (y) 
+                     `(assert! ,y)) ys)
      ,x))
 
 (defmacro assert!! (x &rest ys)
@@ -246,20 +233,22 @@
       (let (abort-timestamp abort?)
         (let ((terminate? (cond
                            (abort-after
-                            (setf abort-timestamp (+ start-timestamp (round (* abort-after 60 1))))
+                            (global (setf abort-timestamp (+ start-timestamp (round (* abort-after 60 1)))))
                             (cond 
                              (terminate?
                               #'(lambda (y)
-                                  (incf cycle-count) 
-                                  (or (setf abort? (> (get-universal-time) abort-timestamp))
-                                      (funcall terminate? y))))
+                                  (global 
+                                    (setf cycle-count (1+ cycle-count))
+                                    (or (setf abort? (> (get-universal-time) abort-timestamp))
+                                        (funcall terminate? y)))))
                              (T #'(lambda (y) 
-                                    (incf cycle-count) 
-                                    (setf abort? (> (get-universal-time) abort-timestamp))))))
+                                    (global 
+                                      (setf cycle-count (1+ cycle-count))
+                                      (setf abort? (> (get-universal-time) abort-timestamp)))))))
                            (T (or terminate? 
                                   #'(lambda (y) 
                                       (declare (ignore y)) 
-                                      (incf cycle-count) 
+                                      (global (setf cycle-count (1+ cycle-count)))
                                       nil)))))
 
               (cost-fun
@@ -279,52 +268,20 @@
                 (T #'<)))
 
               (onmatch 
-               (cond 
-                ((and 
-                  collect-to 
-                  (find-package :OPENMUSIC)
-                  (typep collect-to (find-symbol "STORE" :OPENMUSIC)))
-                 ;(fecho "...SOLUTION-->~A (~Ax, ~A ~A)~%~%"
-                 ;       collect-to
-                 ;       (length (?variables-in (list x))) 
-                 ;       (paradigm--format-timestamp start-timestamp)
-                 ;       (if abort-timestamp
-                 ;           (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
-                 ;         ""))
-                 (cond 
-                  (onmatch 
-                   #'(lambda (xs) 
-                       (unless (not (find-package :OPENMUSIC))
-                         (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs))))
-                       ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
-                       (funcall onmatch xs)))
-                  (T #'(lambda (xs) 
-                         (unless (not (find-package :OPENMUSIC))
-                           (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs))))
-                         ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
-                         ))))
+               (cond ((and (find-package :OPENMUSIC) collect-to (typep collect-to (find-symbol "STORE" :OPENMUSIC)))
+                      (cond (onmatch #'(lambda (xs)                       
+                                         (unless (not (find-package :OPENMUSIC))
+                                           (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs)))
+                                           (funcall onmatch (if collect-to (append xs (list (cons :STORE collect-to)) xs))))))
+                            (T #'(lambda (xs) 
+                                   (unless (not (find-package :OPENMUSIC))
+                                     (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs))))))))
                 
-                (collect-to
-                 ;(fecho 
-                 ;        "...SOLUTION-->(SOLVER-OUTPUT) (~Ax, ~A ~A)~%~%" 
-                 ;        (length (?variables-in (list x))) 
-                 ;        (paradigm--format-timestamp start-timestamp)
-                 ;        (if abort-timestamp
-                 ;            (format nil "until ~A" (paradigm--format-timestamp abort-timestamp))
-                 ;          ""))
-                 (cond 
-                  (onmatch 
-                   #'(lambda (xs) 
-                       ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
-                       (funcall onmatch xs)))
-                  (T #'(lambda (xs) 
-                         ;(paradigm--save-to-solver-output (cdr (assoc :match xs)))
-                         T
-                         ))))
+                     (collect-to (cond (onmatch #'(lambda (xs) 
+                                                    (funcall onmatch (append xs (list (cons :STORE collect-to)) xs))))
+                                       (T #'(lambda (xs) T))))
 
-                (T (if onmatch
-                       onmatch
-                     #'(lambda (x) nil))))))
+                     (T (if onmatch onmatch #'(lambda (x) nil))))))
 
           (cond
            (cut-after
@@ -371,6 +328,8 @@
   (apply #'format 
          (append (list *echo-stream* (concatenate 'string message "~%")) args)))
 
+; x &rest xs functions
+(defun ?oper-arguments (x list) (flatt (append (list x) list)))
 
 (cl:defun paradigm--format-timestamp (timestamp)
     (multiple-value-bind

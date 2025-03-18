@@ -7,26 +7,13 @@
 (defun ?1+ (x) (+v 1 x))
 (defun ?-1 (x) (-v x 1))
 
-(defun ?% (n d)
-  (cond
-   ((null n) nil)
-   ((consp n) 
-    (cons (?% (car n) d)
-          (if (cdr n) (?% (cdr n) d))))
-   (T 
-    (let ((x (-v n (*v d (an-integerv)))))
-      (assert! (integerpv x))
-      (assert! (>=v x 0))
-      (assert! (<v x d))
-      x))))
-
-(cl:defun ?%-restricts-bounds ()
-  (screamer::defun ?% (n d)
+(cl:defun %v-restricts-bounds ()
+  (screamer::defun %v (n d)
     (cond
      ((null n) nil)
      ((consp n) 
-      (cons (?% (car n) d)
-            (if (cdr n) (?% (cdr n) d) NIL)))
+      (cons (%v (car n) d)
+            (if (cdr n) (%v (cdr n) d) NIL)))
      (T 
       (let ((x (-v n (*v d (an-integerv)))))
         (assert! (integerpv x))
@@ -34,27 +21,26 @@
         (assert! (<v x d))
         x)))))
 
-(cl:defun ?%-calls-native-function ()
+(cl:defun %v-calls-native-function ()
   (screamer::defun ?% (n d)
     (cond
      ((null n) nil)
      ((consp n) 
-      (cons (?% (car n) d)
-            (if (cdr n) (?% (cdr n) d) NIL)))
+      (cons (%v (car n) d)
+            (if (cdr n) (%v (cdr n) d) NIL)))
      (T 
       (let ((x (an-integer-betweenv 0 (1- d))))
         (assert! (equalv x (funcallv #'mod n d)))
         x)))))
 
-(defvar *paradigm--modulo-function* nil)
+(%v-restricts-bounds)
+; (%v-calls-native-function)
 
-;(defvar *paradigm--modulo-calls-native-function* 
-;  #'(lambda (n d)
-;      (let ((var (an-integer-betweenv 0 (1- d))))
-;        (assert! (equalv var (funcallv #'mod n d)))
-;        var)))
+(defun ?% (n d) (%v n d))
 
-(defun ?avg (&rest xs) (/v (apply #'+v xs) (length xs)))
+(defun ?avg (&rest xs) 
+  (/v (apply #'+v xs) (length xs)))
+
 (defun ?abs (k) 
   (cond
    ((null k) nil)
@@ -72,9 +58,54 @@
   (cond 
    ((null list) nil)
    ((cdr list)
-    (append (list (s:-v (cadr list) (car list)))
-            (?listdx (cdr list))))
+    (cond
+     ((and (car list) (cadr list))
+      (append (list (s:-v (cadr list) (car list))) (?listdx (cdr list))))
+     ((and (null (car list)) (null (cadr list)))
+      (?listdx (append '(nil) (cddr list))))
+     ((cadr list)
+      (append '(nil) (?listdx (cdr list))))
+     (T
+      (?listdx (cdr list)))))
    (T nil)))
+
+(defmacro write-list-oper-function (oper)
+  (let ((name (intern (format nil "LIST~A" (symbol-name oper)) :SCREAMER))
+        (internal-fn (intern (format nil "LIST~A-INTERNAL" (symbol-name oper)) :SCREAMER)))   
+    `(PROGN
+       (SCREAMER::DEFUN ,internal-fn (X VALUE VARIABLES)
+         (COND
+          ((OR (NUMBERP X)
+               (VARIABLE? X))
+           (LET ((BINDING (ASSOC X VARIABLES :TEST #'EQ)))
+             (IF BINDING
+                 (VALUES (CDR BINDING) VARIABLES)
+               (LET ((Y (,oper X VALUE)))
+                 (VALUES Y (CONS (CONS X Y) VARIABLES))))))
+          ((CONSP X)
+           (MULTIPLE-VALUE-BIND (CAR-X CAR-VARIABLES)
+               (,internal-fn (CAR X) VALUE VARIABLES)
+             (MULTIPLE-VALUE-BIND (CDR-X CDR-VARIABLES)
+                 (,internal-fn (CDR X) VALUE CAR-VARIABLES)
+               (VALUES (CONS CAR-X CDR-X) CDR-VARIABLES))))
+          (T (VALUES X VARIABLES))))
+
+       (SCREAMER::DEFUN ,name (X VALUE)
+         (MULTIPLE-VALUE-BIND (Y VARIABLES) (,internal-fn X VALUE '())
+           Y)))))
+
+(write-list-oper-function s:+v)
+(write-list-oper-function s:-v)
+(write-list-oper-function s:*v)
+(write-list-oper-function s:/v)
+(write-list-oper-function s::%v)
+
+(defun ?list+ (x value) (list+v-internal x value '()))
+(defun ?list- (x value) (list-v-internal x value '()))
+(defun ?list* (x value) (list*v-internal x value '()))
+(defun ?list/ (x value) (list/v-internal x value '()))
+(defun ?list% (x value) (list%v-internal x value '()))
+
 (defun a?boolean (&optional name) (if name (s:a-booleanv name) (s:a-booleanv)))
 (defun a?member-of (sequence) (screamer:a-member-ofv sequence))
 (defun a?number (&optional name) (if name (screamer:a-numberv name) (screamer:a-numberv)))
