@@ -145,23 +145,9 @@
      (T
       (let ((input (elt ys (1- (length ys))))
             (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
+        `(every!!-internal ,input ,@variables))))))
 
-(defmacro assert!!-and (x &rest ys)
-  (let ((args (loop for i from 0 while (<= i (length ys)) collect
-                      (cond
-                       ((= i 0) x)
-                       (T (nth (1- i) ys))))))
-    (cond
-     ((null x) nil)
-     ((= 1 (length args))
-      `(assert! ,x))
-     (T
-      (let ((input (elt ys (1- (length ys))))
-            (variables (loop for i from 0 while (< i (1- (length args))) collect (nth i args))))
-        `(assert!!-and-internal ,input ,@variables))))))
-
-(defmacro assert!!-and-internal (x &rest ys)
+(defmacro every!!-internal (x &rest ys)
   `(progn
      ,@(mapcar #'(lambda (y) 
                      `(assert! ,y)) ys)
@@ -1463,4 +1449,20 @@
                (unless (funcall test x (car (reverse (car p)))) (fail))
                (append (reverse (cdr (reverse (car p))))
                        (cadr p))))))))
+
+(defun group-list-nondeterministic (list segmentation mode)
+  (cond
+   ((null list) nil)
+   ((not (some #'(lambda (x) (<= x (length list))) segmentation))
+     (fail))
+   (T
+    (let ((items (a-member-of segmentation)))
+      (unless (<= items (length list))
+        (fail))
+      (cons (subseq list 0 items)
+              (group-list-nondeterministic (subseq list items (length list))
+                                           segmentation
+                                           mode))))))
+  
+      
 

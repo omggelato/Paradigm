@@ -248,7 +248,7 @@
                :initarg :next-nodes
                :initform nil)))
 
-(cl:defun ?mapprules (list prules
+(cl:defun mapprules (list prules
                         &key continuation-mode
                         ordered-partitions-nondeterministic-values-cap
                         symbol-mode
@@ -305,9 +305,9 @@
              (rplacd (last place) (list item))))
            place)
          (flat (list) (flatt list))
-         (all-memberv (list sequence) (apply #'andv (mapcar #'(lambda (x) (memberv x sequence)) (flat list)))))
+         (all-memberv (list sequence) (apply #'andv (mapcar #'(lambda (x) (memberv x sequence)) (flatt list)))))
       (let* ((dnd (flat1 (mapcar #'one-to-one-transform prules)))
-             (syms (remove-duplicates (flat dnd) :test #'symeq :from-end t))
+             (syms (remove-duplicates (flatt dnd) :test #'symeq :from-end t))
              (nonterminals (mapcar #'car dnd))
              (terminals (remove-duplicates
                          (remove-if-not
@@ -605,7 +605,9 @@
                                                 (push (list (cons r xs) var) or-sym-xs-assoc)
                                                 var)))))))
                                   (t nil))))
-                            (assert! (andv (apply #'andv (mapcar #'(lambda (x) (memberv x terminals)) vars)) (maprule vars (mpr-name dmg))))
+                            (dolist (x vars)
+                              (assert! (memberv x terminals)))
+                            (assert! (maprule vars (mpr-name dmg)))
                             list)))))))))))))))
 
 

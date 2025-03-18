@@ -566,6 +566,10 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod get-boxcallclass-fun ((self (eql 'one?=))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'not-one?=))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'each?=oneof))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'group-list-nondeterministic))) 'screamerboxes)
+(defmethod! group-list-nondeterministic (list segmentation mode)
+  :icon 235
+  (s::group-list-nondeterministic list segmentation mode))
 
 (defmethod! ?and (x y &rest ys) (apply #'s:andv (append (list x y) ys)))
 (defmethod! ?or (x y &rest ys) (apply #'s:orv (append (list x y) ys)))
@@ -728,13 +732,13 @@ directly nested in a call to ASSERT!, are similarly transformed.
                          hour minute second month date))))
 
 ;; mapprules.lisp
-; (defmethod get-boxcallclass-fun ((self (eql '?mapprules))) 'screamerboxes)
+; (defmethod get-boxcallclass-fun ((self (eql 'mapprules))) 'screamerboxes)
 
 ; Graph representation of context-free grammars
 ; Alex Shkotin arXiv:cs/0703015 http://arxiv.org/abs/cs/0703015
 ; 
 ; jan 2013 
-(defmethod! ?mapprules (list prules
+(defmethod! mapprules (list prules
                         &key continuation-mode
                         ordered-partitions-nondeterministic-values-cap
                         symbol-mode
@@ -742,14 +746,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
                         params
                         print-graph-info
                         listdxx)
-  (s::?mapprules list prules :print-graph-info print-graph-info))            
-
-
-
-
-
-
-
+  (s::mapprules list prules :print-graph-info print-graph-info))
 
 
 
