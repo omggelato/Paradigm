@@ -1,5 +1,7 @@
 (in-package :SCREAMER)
 
+(defvar *infinity* 1e38)
+
 (defun ?variables-in (x) (reverse (?variables-in-internal x '())))
 
 (defun ?variables-in-internal (x variables)
@@ -190,121 +192,121 @@
   `(assert!!-funcall-mode ,input ,@functions)))))
 
 ;; ?solution
-(defun ?solution (x &key onmatch collect-to cut-after abort-after force-fun cost-fun terminate? order)
-  (let ((force-fun 
-         (cond
-          ((null force-fun) #'linear-force)
-          ((functionp force-fun) force-fun)
-          ((find (symbol-name force-fun) '("lf" "linear-force")) #'linear-force)
-          ((find (symbol-name force-fun) '("dacf" "divide-and-conquer-force")) #'divide-and-conquer-force)
-          (T #'linear-force))))
-  (cond
-   ((and (null onmatch) 
-         (null collect-to) 
-         (null cut-after)
-         (null abort-after)
-         (null cost-fun)
-         (null terminate?)
-         (null order))
-    (solution x (static-ordering force-fun)))
+(defun ?solution (x &key onmatch skip cut-after ith-value abort-after collect-to force-fun cost-fun terminate? order)
 
-   ;;;; 
+  ;(print (format nil "?solution skip: ~A cut-after: ~A ith-value ~A" skip cut-after ith-value))
+  (cond
+   ((and (null onmatch) (null collect-to) (null force-fun)
+         (null skip) (null cut-after) (null ith-value) (null abort-after)
+         (null cost-fun) (null terminate?) (null order))
+    (solution x (static-ordering #'linear-force)))
+   ((and ith-value (< ith-value 0)) (fail))
+   ((null skip) (?solution x :onmatch onmatch :skip 0 :cut-after cut-after :ith-value ith-value
+                           :abort-after abort-after :collect-to collect-to :force-fun force-fun 
+                           :cost-fun cost-fun :terminate? terminate? :order order))
+   ((or (null cut-after)
+        (= 0 cut-after)) (?solution x :onmatch onmatch :skip skip :cut-after (1- (- *infinity* skip)) :ith-value ith-value
+                                    :abort-after abort-after :collect-to collect-to :force-fun force-fun 
+                                    :cost-fun cost-fun :terminate? terminate? :order order))
+   ((null ith-value) (?solution x :onmatch onmatch :skip skip :cut-after cut-after :ith-value skip
+                                    :abort-after abort-after :collect-to collect-to :force-fun force-fun 
+                                    :cost-fun cost-fun :terminate? terminate? :order order))
+   ((> ith-value (+ skip (1- cut-after))) (fail))
    (T
     (let ((default-cost-fun (let ((variables (remove-duplicates (variables-in (value-of x)) :from-end T)))
                               #'(lambda (y) (or (position y variables) 100))))
           (default-terminate-test #'(lambda (y) (declare (ignore y)) nil))
+          (force-fun 
+           (cond
+            ((null force-fun) #'linear-force)
+            ((functionp force-fun) force-fun)     
+            ((nondeterministic-function? force-fun) force-fun)
+            ((find (symbol-name force-fun) '("lf" "linear-force")) #'linear-force)
+            ((find (symbol-name force-fun) '("dacf" "divide-and-conquer-force")) #'divide-and-conquer-force)
+            (T #'linear-force)))
           (match-count 0)
           (cycle-count 0)
           (start-timestamp (get-universal-time)))
-      (let (abort-timestamp abort?)
-        (let ((terminate? (cond
-                           (abort-after
-                            (global (setf abort-timestamp (+ start-timestamp (round (* abort-after 60 1)))))
-                            (cond 
-                             (terminate?
-                              #'(lambda (y)
-                                  (global 
-                                    (setf cycle-count (1+ cycle-count))
-                                    (or (setf abort? (> (get-universal-time) abort-timestamp))
-                                        (funcall terminate? y)))))
-                             (T #'(lambda (y) 
-                                    (global 
-                                      (setf cycle-count (1+ cycle-count))
-                                      (setf abort? (> (get-universal-time) abort-timestamp)))))))
-                           (T (or terminate? 
-                                  #'(lambda (y) 
-                                      (declare (ignore y)) 
-                                      (global (setf cycle-count (1+ cycle-count)))
-                                      nil)))))
+        (let (abort-timestamp abort?)
+          (let ((terminate? 
+                 (cond
+                  (abort-after
+                   (global (setf abort-timestamp (+ start-timestamp (round (* abort-after 60 1)))))
+                   (cond 
+                    (terminate?
+                     #'(lambda (y)
+                         (global 
+                          (setf cycle-count (1+ cycle-count))
+                          (or (setf abort? (> (get-universal-time) abort-timestamp))
+                              (funcall terminate? y)))))
+                    (T #'(lambda (y) 
+                           (global 
+                            (setf cycle-count (1+ cycle-count))
+                            (setf abort? (> (get-universal-time) abort-timestamp)))))))
+                  (T (or terminate? 
+                         #'(lambda (y) 
+                             (declare (ignore y)) 
+                             (global (setf cycle-count (1+ cycle-count)))
+                             nil)))))
 
-              (cost-fun
-               (cond 
-                ((null cost-fun) default-cost-fun)
-                ((functionp cost-fun) cost-fun)
-                ((find (symbol-name cost-fun) '("domain-size" "domain")) #'domain-size)
-                ((find (symbol-name cost-fun) '("range-size" "range")) #'range-size)
-                (T default-cost-fun)))
+                (cost-fun
+                 (cond 
+                  ((null cost-fun) default-cost-fun)
+                  ((functionp cost-fun) cost-fun)
+                  ((find (symbol-name cost-fun) '("domain-size" "domain")) #'domain-size)
+                  ((find (symbol-name cost-fun) '("range-size" "range")) #'range-size)
+                  (T default-cost-fun)))
 
-              (order
-               (cond
-                ((null order) #'<)
-                ((functionp order) order)
-                ((string= (symbol-name order) "<") #'<)
-                ((string= (symbol-name order) ">") #'>)
-                (T #'<)))
+                (order
+                 (cond
+                  ((null order) #'<)
+                  ((functionp order) order)
+                  ((string= (symbol-name order) "<") #'<)
+                  ((string= (symbol-name order) ">") #'>)
+                  (T #'<)))
 
-              (onmatch 
-               (cond ((and (find-package :OPENMUSIC) collect-to (typep collect-to (find-symbol "STORE" :OPENMUSIC)))
-                      (cond (onmatch #'(lambda (xs)                       
-                                         (unless (not (find-package :OPENMUSIC))
-                                           (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs)))
-                                           (funcall onmatch (if collect-to (append xs (list (cons :STORE collect-to)) xs))))))
-                            (T #'(lambda (xs) 
-                                   (unless (not (find-package :OPENMUSIC))
-                                     (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs))))))))
+                (onmatch 
+                 (cond ((and (find-package :OPENMUSIC) collect-to (typep collect-to (find-symbol "STORE" :OPENMUSIC)))
+                        (cond (onmatch #'(lambda (xs)                       
+                                           (unless (not (find-package :OPENMUSIC))
+                                             (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs)))
+                                             (funcall onmatch (if collect-to (append xs (list (cons :STORE collect-to)) xs))))))
+                              (T #'(lambda (xs) 
+                                     (unless (not (find-package :OPENMUSIC))
+                                       (funcall (find-symbol "COLLECT-TO" :OPENMUSIC) collect-to (cdr (assoc :match xs))))))))
                 
-                     (collect-to (cond (onmatch #'(lambda (xs) 
-                                                    (funcall onmatch (append xs (list (cons :STORE collect-to)) xs))))
-                                       (T #'(lambda (xs) T))))
+                       (collect-to (cond (onmatch #'(lambda (xs) 
+                                                      (funcall onmatch (append xs (list (cons :STORE collect-to)) xs))))
+                                         (T #'(lambda (xs) T))))
 
-                     (T (if onmatch onmatch #'(lambda (x) nil))))))
+                       (T (if onmatch onmatch #'(lambda (x) nil)))))
 
-          (cond
-           (cut-after
-            (first 
-             (reverse
-              (n-values 
-               cut-after 
-               (let ((value
-                      (solution x (reorder cost-fun 
-                                           terminate?
-                                           order
-                                           force-fun))))
-                 (when abort?
-                   (fail))
-                 (if abort-after
-                     (progn
-                       (setf start-timestamp (get-universal-time))
-                       (setf abort-timestamp (+ start-timestamp (round (* abort-after 60 1))))
-                       (setf abort? nil)))
-                 (funcall onmatch (list (cons :match-count (incf match-count))
-                                        (cons :cycle-count cycle-count)
-                                        (cons :timestamp start-timestamp)
-                                        (cons :match value)))
-                 value)))))
-           (T
-            (let ((value
-                   (solution x (reorder cost-fun
-                                        terminate?
-                                        order
-                                        force-fun))))
-              (when abort?
-                (fail))
-              (funcall onmatch (list (cons :match-count (incf match-count))
-                                     (cons :cycle-count cycle-count)
-                                     (cons :timestamp start-timestamp)
-                                     (cons :match value)))
-              value))))))))))
+                (fail? (gensym "fail"))                
+                (last-count -1)
+                (count 0))
+            (let ((last-match fail?))
+              (either 
+                (let ((value (solution x (reorder cost-fun terminate? order force-fun))))
+                  (when abort? (fail))
+                  (global (setf last-match value))
+                  (global (setf count (1+ count)))
+                  (when (< count skip) (fail))
+                  (when (> count (+ skip (1- cut-after))) (fail))
+                  (funcall onmatch (list (cons :match-count (incf match-count))
+                                         (cons :cycle-count cycle-count)
+                                         (cons :timestamp start-timestamp)
+                                         (cons :match value)))
+                  (global (setf last-count count))
+                  value)
+                (progn
+                  (when (eq last-match fail?)
+                    (fail))
+                  (when (> count (1- (+ skip (1- cut-after))))
+                    (fail))
+                  (when (= count last-count)
+                    (fail))
+                  last-match)))))))))
+              
 
 (defvar *echo-stream* (if (find-package :OM-LISP) 
                           (find-symbol "*om-stream*" :om-lisp)

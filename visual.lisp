@@ -82,7 +82,7 @@
 (defmethod! ?funcall (f &rest xs)
   (apply #'s:funcallv (append (list f) xs)))
 
-(defmethod! ?solution (x &key onmatch collect-to cut-after abort-after force-fun cost-fun terminate? order)
+(defmethod! ?solution (x &key onmatch collect-to skip cut-after ith-value abort-after force-fun cost-fun terminate? order)
 
  :doc "ARGUMENTS is a list of values. Typically it is a list of
 variables but it may also contain nonvariables.
@@ -112,8 +112,10 @@ functions."
  (s::?solution x 
             :onmatch onmatch
             :collect-to collect-to
+            :skip skip
             :cut-after cut-after
-            :abort-after abort-after
+            :ith-value ith-value
+            :abort-after abort-after         
             :force-fun force-fun
             :cost-fun cost-fun
             :terminate? terminate?
@@ -697,6 +699,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
    ((null input) nil)
    ((null n) (nsucc input (length input) :step step :list-padding list-padding :pad-character pad-character))
    ((null step) (nsucc input n :step 1 :list-padding list-padding :pad-character pad-character))
+   ((= step 0) input)
    ((and (listp input)
          (< (length input) n))
     (list input))
