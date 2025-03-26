@@ -192,26 +192,29 @@
   `(assert!!-funcall-mode ,input ,@functions)))))
 
 ;; ?solution
-(defun ?solution (x &key onmatch skip cut-after ith-value abort-after collect-to force-fun cost-fun terminate? order)
+(defun ?solution (x &key force-fun cost-fun terminate? order skip cut-after onmatch collect-to abort-after)
 
-  ;(print (format nil "?solution skip: ~A cut-after: ~A ith-value ~A" skip cut-after ith-value))
   (cond
-   ((and (null onmatch) (null collect-to) (null force-fun)
-         (null skip) (null cut-after) (null ith-value) (null abort-after)
-         (null cost-fun) (null terminate?) (null order))
+   ((every #'null (list force-fun cost-fun terminate? order skip cut-after onmatch collect-to abort-after))
     (solution x (static-ordering #'linear-force)))
-   ((and ith-value (< ith-value 0)) (fail))
-   ((null skip) (?solution x :onmatch onmatch :skip 0 :cut-after cut-after :ith-value ith-value
+
+;   ((and ith-value (< ith-value 0)) (fail))
+
+   ((null skip) (?solution x :onmatch onmatch :skip 0 :cut-after cut-after
                            :abort-after abort-after :collect-to collect-to :force-fun force-fun 
                            :cost-fun cost-fun :terminate? terminate? :order order))
+
    ((or (null cut-after)
-        (= 0 cut-after)) (?solution x :onmatch onmatch :skip skip :cut-after (1- (- *infinity* skip)) :ith-value ith-value
+        (= 0 cut-after)) (?solution x :onmatch onmatch :skip skip :cut-after (1- (- *infinity* skip))
                                     :abort-after abort-after :collect-to collect-to :force-fun force-fun 
                                     :cost-fun cost-fun :terminate? terminate? :order order))
-   ((null ith-value) (?solution x :onmatch onmatch :skip skip :cut-after cut-after :ith-value skip
-                                    :abort-after abort-after :collect-to collect-to :force-fun force-fun 
-                                    :cost-fun cost-fun :terminate? terminate? :order order))
-   ((> ith-value (+ skip (1- cut-after))) (fail))
+
+;   ((null ith-value) (?solution x :onmatch onmatch :skip skip :cut-after cut-after :ith-value skip
+;                                    :abort-after abort-after :collect-to collect-to :force-fun force-fun 
+;                                    :cost-fun cost-fun :terminate? terminate? :order order))
+
+;   ((> ith-value (+ skip (1- cut-after))) (fail))
+
    (T
     (let ((default-cost-fun (let ((variables (remove-duplicates (variables-in (value-of x)) :from-end T)))
                               #'(lambda (y) (or (position y variables) 100))))

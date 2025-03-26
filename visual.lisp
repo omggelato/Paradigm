@@ -82,44 +82,17 @@
 (defmethod! ?funcall (f &rest xs)
   (apply #'s:funcallv (append (list f) xs)))
 
-(defmethod! ?solution (x &key onmatch collect-to skip cut-after ith-value abort-after force-fun cost-fun terminate? order)
-
- :doc "ARGUMENTS is a list of values. Typically it is a list of
-variables but it may also contain nonvariables.
-
-The specified ORDERING-FORCE-FUNCTION is used to force each of the variables
-in list to be bound.
-
-Returns a list of the values of the elements of list in the same order that
-they appear in list, irrespective of the forcing order imposed by the
-ORDERING-FORCE-FUNCTION.
-
-The ORDERING-FORCE-FUNCTION can be any function which takes a list of values
-as its single argument that is guaranteed to force all variables in that list
-to be bound upon its return. The returned value of the ORDERING-FORCE-FUNCTION
-is ignored.
-
-The user can construct her own ORDERING-FORCE-FUNCTION or use one of the
-following alternatives provided with Screamer:
-
-   \(STATIC-ORDERING #'LINEAR-FORCE),
-   \(STATIC-ORDERING #'DIVIDE-AND-CONQUER-FORCE),
-   \(REORDER COST-FUN TERMINATE-TEST ORDER #'LINEAR-FORCE) and
-   \(REORDER COST-FUN TERMINATE-TEST ORDER #'DIVIDE-AND-CONQUER-FORCE).
-
-Future implementation of Screamer may provide additional forcing and ordering
-functions."
- (s::?solution x 
-            :onmatch onmatch
-            :collect-to collect-to
-            :skip skip
-            :cut-after cut-after
-            :ith-value ith-value
-            :abort-after abort-after         
+(defmethod! ?solution (x &key force-fun cost-fun terminate? order skip cut-after onmatch collect-to abort-after)
+  (s::?solution x 
             :force-fun force-fun
             :cost-fun cost-fun
             :terminate? terminate?
-            :order order))
+            :order order
+            :skip skip
+            :cut-after cut-after         
+            :onmatch onmatch
+            :collect-to collect-to
+            :abort-after abort-after))
 
 (defmethod! assert!! (x &rest xs)
   :icon 161 
