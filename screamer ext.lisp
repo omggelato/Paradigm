@@ -126,7 +126,7 @@
                 template))))
 
 (defun ?template (template &optional map)
-  (cl:multiple-value-bind (xs vars) 
+  (multiple-value-bind (xs vars) 
       (if map 
           (screamer::template-internal (rewrite-?template template map) map)
         (screamer:template (rewrite-?template template map)))
@@ -198,8 +198,6 @@
    ((every #'null (list force-fun cost-fun terminate? order skip cut-after onmatch collect-to abort-after))
     (solution x (static-ordering #'linear-force)))
 
-;   ((and ith-value (< ith-value 0)) (fail))
-
    ((null skip) (?solution x :onmatch onmatch :skip 0 :cut-after cut-after
                            :abort-after abort-after :collect-to collect-to :force-fun force-fun 
                            :cost-fun cost-fun :terminate? terminate? :order order))
@@ -208,12 +206,6 @@
         (= 0 cut-after)) (?solution x :onmatch onmatch :skip skip :cut-after (1- (- *infinity* skip))
                                     :abort-after abort-after :collect-to collect-to :force-fun force-fun 
                                     :cost-fun cost-fun :terminate? terminate? :order order))
-
-;   ((null ith-value) (?solution x :onmatch onmatch :skip skip :cut-after cut-after :ith-value skip
-;                                    :abort-after abort-after :collect-to collect-to :force-fun force-fun 
-;                                    :cost-fun cost-fun :terminate? terminate? :order order))
-
-;   ((> ith-value (+ skip (1- cut-after))) (fail))
 
    (T
     (let ((default-cost-fun (let ((variables (remove-duplicates (variables-in (value-of x)) :from-end T)))
@@ -224,8 +216,9 @@
             ((null force-fun) #'linear-force)
             ((functionp force-fun) force-fun)     
             ((nondeterministic-function? force-fun) force-fun)
-            ((find (symbol-name force-fun) '("lf" "linear-force")) #'linear-force)
-            ((find (symbol-name force-fun) '("dacf" "divide-and-conquer-force")) #'divide-and-conquer-force)
+            ((find (symbol-name force-fun) '("LINEAR-FORCE" "LF" ) :test #'string=) #'linear-force)
+            ((find (symbol-name force-fun) '("DIVIDE-AND-CONQUER-FORCE" "DACF") :test #'string=) #'divide-and-conquer-force)
+            ((find (symbol-name force-fun) '("RANDOM-FORCE" "RANDOM") :test #'string=) #'random-force)
             (T #'linear-force)))
           (match-count 0)
           (cycle-count 0)
@@ -256,8 +249,8 @@
                  (cond 
                   ((null cost-fun) default-cost-fun)
                   ((functionp cost-fun) cost-fun)
-                  ((find (symbol-name cost-fun) '("domain-size" "domain")) #'domain-size)
-                  ((find (symbol-name cost-fun) '("range-size" "range")) #'range-size)
+                  ((find (symbol-name cost-fun) '("DOMAIN-SIZE") :test #'string=) #'domain-size)
+                  ((find (symbol-name cost-fun) '("RANGE-SIZE") :test #'string=) #'range-size)
                   (T default-cost-fun)))
 
                 (order
@@ -1469,5 +1462,5 @@
                                            segmentation
                                            mode))))))
   
-      
+
 

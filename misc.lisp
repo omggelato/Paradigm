@@ -31,24 +31,17 @@
 
 
 
-(in-package :SCREAMER-USER)
-(defun an-expanded-list (templates rules &key randomize-choices) ; delete
-  (let ((r (solution (an-expanded-list-rec 1 templates :randomize-choices randomize-choices)
-                     (static-ordering #'linear-force))))
-    (unless (every #'(lambda (rule) (funcall rule r)) (if (consp rules) rules (list rules))) (fail))
-    r))
-(defun an-expanded-list-rec (len templates &key randomize-choices)
-  (either    
-    (mapcar #'(lambda (x) (if randomize-choices (a-random-member-ofv templates) (a-member-ofv templates))) (make-sequence 'list len))
-    (an-expanded-list-rec (1+ len) templates :randomize-choices randomize-choices)))
-(defun evaluate-an-expanded-list-function (input r)
-  (cond ((null r) t)
-        ((consp r)
-         (and (evaluate input (car r))
-              (evaluate input (cdr r))))
-        ((functionp r)
-         (funcall r input))
-        (t nil)))
+;(in-package :SCREAMER-USER)
+;(defun an-expanded-list-internal (len templates)
+;  (either    
+;    (mapcar #'(lambda (x) (a-member-ofv templates) (make-sequence 'list len))
+;    (an-expanded-list-internal (1+ len) templates))))
+;(defun an-expanded-list (templates rules) ; delete
+;  (let ((r (solution (an-expanded-list-internal 1 templates)
+;                     (static-ordering #'linear-force))))
+;    (unless (every #'(lambda (rule) (funcall rule r)) (if (consp rules) rules (list rules))) (fail))
+;    r))
+
 
 (in-package :SCREAMER)
 (defun grouplist-nondeterministic (list min-groupsize max-groupsize wpartitioncount wmeangroupsize wdeviation wdistancefrommedian )
@@ -296,3 +289,36 @@
                                       (funcall defn (first entry) (second entry) (third entry)))
                                   (append (list definition) defns))))
                      fragments-to-process))))))))
+
+
+
+(cl:defun consecutive-open-intervals! (sequence)
+  (print (format nil "CONSECUTIVE-OPEN-INTERVALS"))
+  (labels
+      ((interval%12 (x y) (%v (om-v (ommaxv x y) (omminv x y)) 12)))
+    (mapcar 
+     #'(lambda (voice1-2)
+         (maplist
+          #'(lambda (chord-list)
+              (if (or (not (cdr chord-list))
+                      (has-null-values (flatt
+                                        (list (car chord-list)
+                                              (cadr chord-list)))))
+                  T
+                (let* ((chord1 (car chord-list))
+                       (chord2 (cadr chord-list))
+                       (interval1 (interval%12 (car chord1)
+                                               (cadr chord1)))
+                       (interval2 (interval%12 (car chord2)
+                                               (cadr chord2)))
+                       (assert! (orv
+                                 (andv
+                                  (notv (andv (=v interval1 7)
+                                              (=v interval2 7)))
+                                  (notv (and (=v interval1 0)
+                                             (=v interval2 0))))
+                                 (andv (=v (car chord1) (car chord2))
+                                       (=v (cadr chord1) (cadr chord2)))))))))
+          (mat-trans (flatten-seqc voice1-2))))
+     (combinations-of2 sequence)))
+  sequence)
