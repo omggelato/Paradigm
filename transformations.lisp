@@ -1,10 +1,10 @@
 (in-package :SCREAMER)
 
+;; MAP?CAR
 (defmacro-compile-time write-map?car-fun (n)
   (let ((name (intern (format nil "MAP~A?CAR-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
         (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n)))))
-    (export name :SCREAMER)
+                           (intern (format nil "LIST~A" i) :SCREAMER))))
     `(DEFUN ,name (FN ,@arguments)
        (IF (OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
            NIL
@@ -24,181 +24,32 @@
   (write-map?car-fun 7)
   (write-map?car-fun 8))
 
-(defmacro-compile-time map?car-internal (fn &rest xs)
-  `(IF (SOME #'NULL (LIST ,@xs))
-       NIL
-     (CONS
-      (FUNCALL ,fn ,@(mapcar #'(lambda (x) `(CAR ,x)) xs))
-      (IF (EVERY #'CDR (LIST ,@xs))
-          (MAP?CAR-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-        NIL))))
+(defun map?car (fn &rest xs)
+  (cond ((null xs) (funcall-nondeterministic fn))
+        ((= 1 (length xs)) (apply-nondeterministic #'map1?car-nondeterministic-internal (append (list fn) xs)))
+        ((= 2 (length xs)) (apply-nondeterministic #'map2?car-nondeterministic-internal (append (list fn) xs)))
+        ((= 3 (length xs)) (apply-nondeterministic #'map3?car-nondeterministic-internal (append (list fn) xs)))
+        ((= 4 (length xs)) (apply-nondeterministic #'map4?car-nondeterministic-internal (append (list fn) xs)))
+        ((= 5 (length xs)) (apply-nondeterministic #'map5?car-nondeterministic-internal (append (list fn) xs)))
+        ((= 6 (length xs)) (apply-nondeterministic #'map6?car-nondeterministic-internal (append (list fn) xs)))
+        ((= 7 (length xs)) (apply-nondeterministic #'map7?car-nondeterministic-internal (append (list fn) xs)))
+        ((= 8 (length xs)) (apply-nondeterministic #'map8?car-nondeterministic-internal (append (list fn) xs)))
+        (T (error "error"))))
 
+(defmacro map?and (fn &rest xs)
+  `(APPLY #'SCREAMER:ANDV (SCREAMER::MAP?CAR ,fn ,@xs)))
 
-(defmacro-compile-time map?list-internal (fn &rest xs)
-  `(IF (SOME #'NULL (LIST ,@xs))
-       NIL
-     (CONS
-      (FUNCALL ,fn ,@xs)
-      (IF (EVERY #'CDR (LIST ,@xs))
-          (MAP?LIST-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-        NIL))))
-
-(defmacro-compile-time map?car (fn &rest xs)
-  (let ((callfn (intern (format nil "MAP~A?CAR-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn ,@xs)
-      `(map?car-internal ,fn ,@xs))))
-
-(defmacro-compile-time map?and (fn &rest xs)
-  (let ((callfn (intern (format nil "MAP~A?AND-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn ,@xs)
-      `(map?and-internal ,fn ,@xs))))
-
-(defmacro-compile-time map?or (fn &rest xs)
-  (let ((callfn (intern (format nil "MAP~A?OR-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn ,@xs)
-      `(map?or-internal ,fn ,@xs))))
-
-(defmacro-compile-time map?and-internal (fn &rest xs)
-  `(IF (SOME #'NULL (LIST ,@xs))
-       T
-     (ANDV
-      (FUNCALL ,fn ,@(mapcar #'(lambda (x) `(CAR ,x)) xs))
-      (IF (EVERY #'CDR (LIST ,@xs))
-          (MAP?AND-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-        T))))
-
-(defmacro-compile-time map?or-internal (fn &rest xs)
-  `(IF (SOME #'NULL (LIST ,@xs))
-       NIL
-     (ORV
-      (FUNCALL ,fn ,@(mapcar #'(lambda (x) `(CAR ,x)) xs))
-      (IF (EVERY #'CDR (LIST ,@xs))
-          (MAP?OR-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-        NIL))))
-
-(defmacro-compile-time write-map?and-fun (n)
-  (let ((name (intern (format nil "MAP~A?AND-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
-        (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n)))))
-    (export name :SCREAMER)
-    `(SCREAMER::DEFUN ,name (FN ,@arguments)
-       (IF (OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
-           T
-         (ANDV
-          (FUNCALL-NONDETERMINISTIC FN ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments))
-          (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-              (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-            T))))))
-
-(defmacro-compile-time write-map?or-fun (n)
-  (let ((name (intern (format nil "MAP~A?OR-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
-        (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n)))))
-    (export name :SCREAMER)
-    `(SCREAMER::DEFUN ,name (FN ,@arguments)
-       (IF (OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
-           NIL
-         (ORV
-          (FUNCALL-NONDETERMINISTIC FN ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments))
-          (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-              (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-            NIL))))))
-
-(progn 
-  (write-map?and-fun 1)
-  (write-map?and-fun 2)
-  (write-map?and-fun 3)
-  (write-map?and-fun 4)
-  (write-map?and-fun 5)
-  (write-map?and-fun 6)
-  (write-map?and-fun 7)
-  (write-map?and-fun 8))
-
-(progn 
-  (write-map?or-fun 1)
-  (write-map?or-fun 2)
-  (write-map?or-fun 3)
-  (write-map?or-fun 4)
-  (write-map?or-fun 5)
-  (write-map?or-fun 6)
-  (write-map?or-fun 7)
-  (write-map?or-fun 8))
-
-(defmacro-compile-time map?list (fn &rest xs)
-  (let ((callfn (intern (format nil "MAP~A?LIST-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn ,@xs)
-      `(map?list-internal ,fn ,@xs))))
-
-(defmacro-compile-time maplist?and (fn &rest xs)
-  (let ((callfn (intern (format nil "MAPLIST~A?AND-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn ,@xs)
-      `(maplist?and-internal ,fn ,@xs))))
-
-(defmacro-compile-time maplist?and (fn &rest xs)
-  (let ((callfn (intern (format nil "MAPLIST~A?OR-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn ,@xs)
-      `(maplist?or-internal ,fn ,@xs))))
-
-(defmacro-compile-time maplist?and-internal (fn &rest xs)
-  `(IF (SOME #'NULL (LIST ,@xs))
-       T
-     (ANDV
-      (FUNCALL ,fn ,@xs)
-      (IF (EVERY #'CDR (LIST ,@xs))
-          (MAPLIST?AND-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-        T))))
-
-(defmacro-compile-time maplist?or-internal (fn &rest xs)
-  `(IF (SOME #'NULL (LIST ,@xs))
-       NIL
-     (ORV
-      (FUNCALL ,fn ,@xs)
-      (IF (EVERY #'CDR (LIST ,@xs))
-          (MAPLIST?OR-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-        NIL))))
+(defmacro map?or (fn &rest xs)
+  `(APPLY #'SCREAMER:ORV (SCREAMER::MAP?CAR ,fn ,@xs)))
 
 (defmacro-compile-time write-map?list-fun (n)
   (let ((name (intern (format nil "MAP~A?LIST-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
         (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n) :SCREAMER))))
-    (export name :SCREAMER)
+                           (intern (format nil "LIST~A" i) :SCREAMER))))
     `(SCREAMER::DEFUN ,name (FN ,@arguments)
        (IF (OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
            NIL
          (CONS
-          (FUNCALL-NONDETERMINISTIC FN ,@arguments)
-          (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-              (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-            NIL))))))
-
-
-(defmacro-compile-time write-maplist?and-fun (n)
-  (let ((name (intern (format nil "MAPLIST~A?AND-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
-        (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n) :SCREAMER))))
-    `(SCREAMER::DEFUN ,name (FN ,@arguments)
-       (IF (OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
-           T
-         (ANDV
-          (FUNCALL-NONDETERMINISTIC FN ,@arguments)
-          (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-              (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-            T))))))
-
-(defmacro-compile-time write-maplist?or-fun (n)
-  (let ((name (intern (format nil "MAPLIST~A?OR-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
-        (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n)))))
-    `(SCREAMER::DEFUN ,name (FN ,@arguments)
-       (IF (OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
-           NIL
-         (ORV
           (FUNCALL-NONDETERMINISTIC FN ,@arguments)
           (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
               (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
@@ -214,28 +65,69 @@
   (write-map?list-fun 7)
   (write-map?list-fun 8))
 
-(progn 
-  (write-maplist?and-fun 1)
-  (write-maplist?and-fun 2)
-  (write-maplist?and-fun 3)
-  (write-maplist?and-fun 4)
-  (write-maplist?and-fun 5)
-  (write-maplist?and-fun 6)
-  (write-maplist?and-fun 7)
-  (write-maplist?and-fun 8))
+(defun map?list (fn &rest xs)
+  (cond ((null xs) (error "map?list called with no arguments"))
+        ((= 1 (length xs)) (apply-nondeterministic #'map1?list-nondeterministic-internal (append (list fn) xs)))
+        ((= 2 (length xs)) (apply-nondeterministic #'map2?list-nondeterministic-internal (append (list fn) xs)))
+        ((= 3 (length xs)) (apply-nondeterministic #'map3?list-nondeterministic-internal (append (list fn) xs)))
+        ((= 4 (length xs)) (apply-nondeterministic #'map4?list-nondeterministic-internal (append (list fn) xs)))
+        ((= 5 (length xs)) (apply-nondeterministic #'map5?list-nondeterministic-internal (append (list fn) xs)))
+        ((= 6 (length xs)) (apply-nondeterministic #'map6?list-nondeterministic-internal (append (list fn) xs)))
+        ((= 7 (length xs)) (apply-nondeterministic #'map7?list-nondeterministic-internal (append (list fn) xs)))
+        ((= 8 (length xs)) (apply-nondeterministic #'map8?list-nondeterministic-internal (append (list fn) xs)))
+        (T (error "error"))))
 
-(progn 
-  (write-maplist?or-fun 1)
-  (write-maplist?or-fun 2)
-  (write-maplist?or-fun 3)
-  (write-maplist?or-fun 4)
-  (write-maplist?or-fun 5)
-  (write-maplist?or-fun 6)
-  (write-maplist?or-fun 7)
-  (write-maplist?or-fun 8))
+(defmacro maplist?and (fn &rest xs)
+  `(APPLY #'SCREAMER:ANDV (SCREAMER::MAP?LIST ,fn ,@xs)))
 
+(defmacro maplist?and (fn &rest xs)
+  `(APPLY #'SCREAMER:ORV (SCREAMER::MAP?LIST ,fn ,@xs)))
 
+(defmacro-compile-time write-map?func (n)
+  (let ((name (intern (format nil "MAP~A?FUNC-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
+        (arguments (loop for i from 1 while (<= i n) collect
+                           (intern (format nil "LIST~A" i)))))
+    `(SCREAMER::DEFUN ,name (FN ,@arguments)
+       (COND ((AND ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
+              NIL)
+             ((OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments)) 
+              (RETURN-FROM ,name NIL))
+             ((AND ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) arguments))
+              (FUNCALL-NONDETERMINISTIC FN ,@arguments))
+             ((OR ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) arguments))
+              (RETURN-FROM ,name NIL))
+             ((AND ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) arguments))
+              (CONS (,name FN ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments))
+                    (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))))
+             ((OR ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) arguments)) 
+              (RETURN-FROM ,name NIL))
+             (T
+              (CONS (FUNCALL-NONDETERMINISTIC FN ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments))
+                    (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
+                        (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
+                      NIL)))))))
 
+(progn
+  (write-map?func 1)
+  (write-map?func 2)
+  (write-map?func 3)
+  (write-map?func 4)
+  (write-map?func 5)
+  (write-map?func 6)
+  (write-map?func 7)
+  (write-map?func 8))
+
+(defun map?func (fn &rest xs)
+  (cond ((null xs) (error "map?func called with no arguments"))
+        ((= 1 (length xs)) (apply-nondeterministic #'map1?func-nondeterministic-internal (append (list fn) xs)))
+        ((= 2 (length xs)) (apply-nondeterministic #'map2?func-nondeterministic-internal (append (list fn) xs)))
+        ((= 3 (length xs)) (apply-nondeterministic #'map3?func-nondeterministic-internal (append (list fn) xs)))
+        ((= 4 (length xs)) (apply-nondeterministic #'map4?func-nondeterministic-internal (append (list fn) xs)))
+        ((= 5 (length xs)) (apply-nondeterministic #'map5?func-nondeterministic-internal (append (list fn) xs)))
+        ((= 6 (length xs)) (apply-nondeterministic #'map6?func-nondeterministic-internal (append (list fn) xs)))
+        ((= 7 (length xs)) (apply-nondeterministic #'map7?func-nondeterministic-internal (append (list fn) xs)))
+        ((= 8 (length xs)) (apply-nondeterministic #'map8?func-nondeterministic-internal (append (list fn) xs)))
+        (T (error "error"))))
 
 (defclass mpr-node () 
   ((mpr-name :accessor mpr-name
@@ -469,7 +361,7 @@
                                              (t (let ((var (make-list-input-variable)))
                                                   (assert! (equalv var x))
                                                   var))))
-                                   list))
+                                   (flatt list)))
                             (rule-card-assoc
                              (mapcar
                               #'(lambda (sym)
@@ -610,132 +502,8 @@
                             (assert! (maprule vars (mpr-name dmg)))
                             list)))))))))))))))
 
-
-
-;; map?func
-(defmacro-compile-time map?func (fn &rest xs)
-  (let ((callfn (intern (format nil "MAP~A?FUNC-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn ,@xs)
-      `(map?func-internal ,fn ,@xs))))
-
-(defmacro-compile-time map?func-internal (fn &rest xs)
-  `(COND ((EVERY #'NULL (LIST ,@xs)) 
-          NIL)
-         ((SOME #'NULL (LIST ,@xs))
-          (RETURN-FROM MAP?FUNC-INTERNAL nil))
-         ((AND ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) xs))
-          (FUNCALL ,fn ,@xs))
-         ((OR ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) xs))
-          (RETURN-FROM MAP?FUNC-INTERNAL nil))
-         ((AND ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) xs))
-          (CONS (MAP?FUNC-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CAR ,x)) xs))
-                (MAP?FUNC-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))))
-         ((OR ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) xs))
-          (RETURN-FROM MAP?FUNC-INTERNAL nil))
-         (T
-          (CONS (FUNCALL ,fn ,@(mapcar #'(lambda (x) `(CAR ,x)) xs))
-                (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-                    (MAP?FUNC-INTERNAL ,fn ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-                  NIL)))))
-
-(defmacro-compile-time write-map?func (n)
-  (let ((name (intern (format nil "MAP~A?FUNC-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
-        (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n)))))
-    `(SCREAMER::DEFUN ,name (FN ,@arguments)
-       (COND ((AND ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
-              NIL)
-             ((OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments)) 
-              (RETURN-FROM ,name NIL))
-             ((AND ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) arguments))
-              (FUNCALL-NONDETERMINISTIC FN ,@arguments))
-             ((OR ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) arguments))
-              (RETURN-FROM ,name NIL))
-             ((AND ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) arguments))
-              (CONS (,name FN ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments))
-                    (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))))
-             ((OR ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) arguments)) 
-              (RETURN-FROM ,name NIL))
-             (T
-              (CONS (FUNCALL-NONDETERMINISTIC FN ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments))
-                    (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-                        (,name FN ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-                      NIL)))))))
-
-(progn
-  (write-map?func 1)
-  (write-map?func 2)
-  (write-map?func 3)
-  (write-map?func 4)
-  (write-map?func 5)
-  (write-map?func 6)
-  (write-map?func 7)
-  (write-map?func 8))
-
-;; map-levels
-(defmacro-compile-time map?levels (fn &rest xs)
-  (let ((callfn (intern (format nil "MAP~A?LEVELS-NONDETERMINISTIC-INTERNAL" (length xs)) :SCREAMER)))
-    (if *nondeterministic-context?*
-        `(,callfn ,fn 0 ,@xs)
-      `(map?levels-internal ,fn 0 ,@xs))))
-
-(defmacro-compile-time map?levels-internal (fn level &rest xs)
-  `(COND ((EVERY #'NULL (LIST ,@xs)) 
-          NIL)
-         ((SOME #'NULL (LIST ,@xs))
-          (RETURN-FROM MAP?LEVELS-INTERNAL nil))
-         ((AND ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) xs))
-          (FUNCALL ,fn ,@xs ,level))
-         ((OR ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) xs))
-          (RETURN-FROM MAP?LEVELS-INTERNAL nil))
-         ((AND ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) xs))
-          (CONS (MAP?LEVELS-INTERNAL ,fn (1+ ,level) ,@(mapcar #'(lambda (x) `(CAR ,x)) xs))
-                (MAP?LEVELS-INTERNAL ,fn ,level ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))))
-         ((OR ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) xs))
-          (RETURN-FROM MAP?LEVELS-INTERNAL nil))
-         (T
-          (CONS (FUNCALL ,fn ,@(mapcar #'(lambda (x) `(CAR ,x)) xs) ,level)
-                (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-                    (MAP?LEVELS-INTERNAL ,fn ,level ,@(mapcar #'(lambda (x) `(CDR ,x)) xs))
-                  NIL)))))
-
-(defmacro-compile-time write-map?levels (n)
-  (let ((name (intern (format nil "MAP~A?LEVELS-NONDETERMINISTIC-INTERNAL" n) :SCREAMER))
-        (arguments (loop for i from 1 while (<= i n) collect
-                           (intern (format nil "LIST~A" n)))))
-    `(SCREAMER::DEFUN ,name (FN LEVEL ,@arguments)
-       (COND ((AND ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments))
-              NIL)
-             ((OR ,@(mapcar #'(lambda (x) `(NULL ,x)) arguments)) 
-              (RETURN-FROM ,name NIL))
-             ((AND ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) arguments))
-              (FUNCALL-NONDETERMINISTIC FN ,@arguments LEVEL))
-             ((OR ,@(mapcar #'(lambda (x) `(NOT (CONSP ,x))) arguments))
-              (RETURN-FROM ,name NIL))
-             ((AND ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) arguments))
-              (CONS (,name FN (1+ LEVEL) ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments))
-                    (,name FN LEVEL ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))))
-             ((OR ,@(mapcar #'(lambda (x) `(CONSP (CAR ,x))) arguments)) 
-              (RETURN-FROM ,name NIL))
-             (T
-              (CONS (FUNCALL-NONDETERMINISTIC FN ,@(mapcar #'(lambda (x) `(CAR ,x)) arguments) LEVEL)
-                    (IF (AND ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-                        (,name FN LEVEL ,@(mapcar #'(lambda (x) `(CDR ,x)) arguments))
-                      NIL)))))))
-
-(progn
-  (write-map?levels 1)
-  (write-map?levels 2)
-  (write-map?levels 3)
-  (write-map?levels 4)
-  (write-map?levels 5)
-  (write-map?levels 6)
-  (write-map?levels 7)
-  (write-map?levels 8))
-
 ;; map-func
-(defun map-func-internal (fn list level level-min level-max with-levels)
+(cl:defun map-func-internal (fn list level level-min level-max with-levels)
   (cond 
    ((not (consp list)) 
     (if (and (or (null level-min)
@@ -751,7 +519,7 @@
     (cons (map-func-internal fn (car list) (1+ level) level-min level-max with-levels)
           (if (cdr list) (map-func-internal fn (cdr list) level level-min level-max with-levels))))))
 
-(defun map-func (fn list &key with-levels level-min level-max)
+(cl:defun map-func (fn list &key with-levels level-min level-max)
   (unless (or (and (null level-min)
                    (null level-max))
               (and (null level-min)
@@ -766,7 +534,7 @@
    ((null list) nil)
    (T
     (let ((level-min (if level-min (1- level-min) nil))
-          (level-max (if level-max (1- level-max) nil)))
+          (level-max (if level-max level-max nil)))
       (map-func-internal fn list 0 level-min level-max with-levels)))))
 
 ;; map2func
@@ -836,6 +604,31 @@
     (cons (funcall fn (car list1) (car list2) (car list3))
           (map3func fn (cdr list1) (cdr list2) (cdr list3))))))
 
+(defun map-levels>= (fn threshold xs)
+  (map-levels>=internal fn 0 threshold xs))
+
+(defun map-levels>=internal (fn level threshold-level xs)
+  (if (>= level threshold-level)
+      (funcall fn xs)
+    (cond 
+     ((not (consp xs)) xs)
+     (T
+      (cons (map-levels>=internal fn (1+ level) threshold-level (car xs))
+            (map-levels>=internal fn level threshold-level (cdr xs)))))))
+
+(defun map-list-levels>= (fn threshold xs)
+  (map-list-levels>=internal fn 0 threshold xs))
+
+(defun map-list-levels>=internal (fn level threshold-level xs)
+  (if (and (consp xs)
+           (>= level threshold-level))
+      (funcall fn xs)
+    (cond 
+     ((not (consp xs)) xs)
+     (T
+      (cons (map-list-levels>=internal fn (1+ level) threshold-level (car xs))
+            (map-list-levels>=internal fn level threshold-level (cdr xs)))))))
+   
 (defun maplcr (fn list) 
   (maplcr-internal fn nil (list (car list)) (cdr list)))
 

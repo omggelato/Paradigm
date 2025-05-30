@@ -87,25 +87,40 @@
    (T (orv (=v x (car sequence))
            (one?= x (cdr sequence))))))
 
-(defun each?=oneof-internal (x sequence)
-  (cond ((null x) nil)
-        ((and (consp x) (cdr x))
-         (andv (each?=oneof-internal (car x) sequence)
-               (each?=oneof-internal (cdr x) sequence)))
-        ((consp x) (each?=oneof-internal (car x) sequence))
-        (T (one?= x sequence))))
+
+(defun one?eq (x sequence)
+  (cond
+   ((null sequence) nil)
+   (T (orv (equalv x (car sequence))
+           (one?eq x (cdr sequence))))))
+
+;(defun each?=oneof-internal (x sequence)
+;  (cond ((null x) nil)
+;        ((and (consp x) (cdr x))
+;         (andv (each?=oneof-internal (car x) sequence)
+;               (each?=oneof-internal (cdr x) sequence)))
+;        ((consp x) (each?=oneof-internal (car x) sequence))
+;        (T (one?= x sequence))))
 
 (defun each?=oneof (x sequence)
-  (each?=oneof-internal (?xs-in x) sequence))
+  (map?and #'(lambda (y) (one?= y sequence)) (?xs-in x)))
 
-(defun ?/=any-internal (x sequence)
-  (cond ((null x) nil)
-        ((and (consp x) (cdr x))
-         (andv (?/=any-internal (car x) sequence)
-               (?/=any-internal (cdr x) sequence)))
-        ((consp x) (?/=any-internal (car x) sequence))
-        (T (not-one?= x sequence))))
-(defun ?/=any (x sequence) (?/=any-internal (?xs-in x) sequence))
+(defun ?/=any (x sequence)
+  (cond
+   ((null sequence) T)
+   (T (andv (/=v x (car sequence))
+           (?/=any x (cdr sequence))))))
+
+;(defun each?/=any-internal (xs sequence)
+;  (cond ((null xs) nil)
+;        ((and (consp xs) (cdr xs))
+;         (andv (each?/=any-internal (car xs) sequence)
+;               (each?/=any-internal (cdr xs) sequence)))
+;        ((consp xs) (each?/=any-internal (car xs) sequence))
+;        (T (?/=any xs sequence))))
+(defun each?/=any (x sequence) 
+  (map?and #'(lambda (y) (?/=any y sequence)) (?xs-in x)))
+
 (defun ?comparison-arguments (x list) (flatt (append (list x) list)))
 (defun ?< (x &rest xs) (apply #'<v (?oper-arguments x xs)))
 (defun ?> (x &rest xs) (apply #'>v (?oper-arguments x xs)))
@@ -115,8 +130,8 @@
 (defun ?/= (x &rest xs) (apply #'/=v (?oper-arguments x xs)))
 (defun ?max (x &rest xs) (apply #'maxv (?xs-in (append (list x) xs))))
 (defun ?min (x &rest xs) (apply #'minv (?xs-in (append (list x) xs))))
-(defun ?and (x y &rest ys) (apply #'andv (append (list x y) ys)))
-(defun ?or (x y &rest ys) (apply #'orv (append (list x y) ys)))
+(defun ?and (x &rest xs) (apply #'andv (flatt (append (list x) xs))))
+(defun ?or (x &rest xs) (apply #'orv (flatt (append (list x) xs))))
 (defun ?not (x) (notv x))
 (defun ?equal (x y) (equalv x y))
 
@@ -144,6 +159,34 @@
 
 (defun ?between (input min max)
   (?between-internal (?xs-in input) min max))
+
+(defun ?within-internal (list min max)
+  (if list
+      (append
+       (list (cond
+              ((and min max)
+               (andv (>=v (car list) min) (<=v (car list) max)))
+              (min (>=v (car list) min))
+              (max (<=v (car list) max))
+              (T T)))
+       (?within-internal (cdr list) min max))
+    '(T)))
+
+(defun ?within (xs min max)
+  (apply #'andv (?within-internal (reverse (?xs-in xs)) min max)))
+
+(defun within!-internal (list min max)
+  (if list
+      (progn
+        (if min 
+            (assert! (>=v (car list) min)))
+        (if max 
+            (assert! (<=v (car list) max)))
+        (within!-internal (cdr list) min max))))
+
+(defun within! (input min max)
+  (within!-internal (reverse (?xs-in input)) min max)
+  input)
 
 (defun ?list<-internal (x value) (if x (andv (<v (car x) value) (?list< (cdr x) value)) T))
 (defun ?list< (x value) (?list<-internal (?xs-in x) value))
@@ -176,4 +219,6 @@
         ((or (consp xs) (consp ys)) nil)
         (T (/=v xs ys))))
 
+(defun list?and (xs) (apply #'andv (flatt xs)))
 
+(defun list?or (xs) (apply #'orv (flatt xs)))

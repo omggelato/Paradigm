@@ -30,89 +30,8 @@
       filename)))
 
 
-
-;(in-package :SCREAMER-USER)
-;(defun an-expanded-list-internal (len templates)
-;  (either    
-;    (mapcar #'(lambda (x) (a-member-ofv templates) (make-sequence 'list len))
-;    (an-expanded-list-internal (1+ len) templates))))
-;(defun an-expanded-list (templates rules) ; delete
-;  (let ((r (solution (an-expanded-list-internal 1 templates)
-;                     (static-ordering #'linear-force))))
-;    (unless (every #'(lambda (rule) (funcall rule r)) (if (consp rules) rules (list rules))) (fail))
-;    r))
-
-
-(in-package :SCREAMER)
-(defun grouplist-nondeterministic (list min-groupsize max-groupsize wpartitioncount wmeangroupsize wdeviation wdistancefrommedian )
-  (let ((points (a-realv)))
-    (map-func
-         (let (items)
-           (dolist (x list)
-             (push x items))
-           (setf items (reverse items))
-           (print 'mapfunc)
-           #'(lambda (x) (pop items)))
-         (mapcar #'make-list (car 
-     (best-value     
-      (let ((min-groupsize (or (and min-groupsize (min min-groupsize (1- (length list)))) 1))
-            (max-groupsize (or (and max-groupsize (min max-groupsize (1- (length list)))) (1- (length list))))
-            (wpartitioncount (or wpartitioncount 0))
-            (wmeangroupsize (or wmeangroupsize 0.5))
-            (wdeviation (or wdeviation 0.5))
-            (wdistancefrommedian (or wdistancefrommedian 1)))
-       ;(print "<<<<<<<>>>>>>>>>>>>")
-       ;(print (list 'grouplist-nondeterministic 'min-groupsize min-groupsize 'max-groupsize max-groupsize ))
-        (let ((min2maxseries (let ((w min-groupsize)
-                                   (stack nil))
-                               (dotimes (- max-groupsize min-groupsize) 
-                                 (push (incf w) stack))
-                               (reverse stack)))
-              (min-count (max 1 (floor (/ (length list) max-groupsize))))
-              (max-count (min (length list) (floor (/ (length list) min-groupsize)))))
-          (let ((median-groupsize (nth (floor (/ (length min2maxseries) 2)) min2maxseries)))
-        ;(print (format nil " grouplist-nondeterministic min-count ~A, max-count ~A for min-groupsize ~A, max-groupsize ~A; median-groupsize: ~A" min-count max-count min-groupsize max-groupsize median-groupsize))
-           ;(print (list 'median-groupsize median-groupsize))
-            (let ((partitions (an-integer-between 1 (length list))))
-              (when (< partitions min-count) (fail))
-              (when (> partitions max-count) (fail))
-             ;(print (list 'partitions partitions))
-              (let ((group-counts (mapcar #'(lambda (x) (an-integer-betweenv min-groupsize max-groupsize)) 
-                                          (make-list partitions))))
-                  (let ((total (apply #'+v group-counts))
-                        (mean-groupsize (a-realv)))
-                    (assert! (=v total (length list)))
-                    (assert! (equalv mean-groupsize (/v total partitions)))
-                 ;(print (list 'group-counts group-counts 'total total))
-                 ;(print (list 'mean-groupsize mean-groupsize))
-                (let ((rs (solution group-counts (static-ordering #'linear-force))))
-                    (let ((deviation (/v (apply #'+v (mapcar #'(lambda (xs) (-v mean-groupsize xs)) group-counts))
-                                         partitions)))
-                      (let ((points-for-partitioncount
-                             (*v wpartitioncount (/ (length list) partitions)))
-                            (points-for-meangroupsize 
-                             (*v wmeangroupsize mean-groupsize))
-                            (points-for-deviation
-                             (*v wdeviation deviation))
-                            (points-for-distancefrommedian 
-                             (*v wdistancefrommedian (-v median-groupsize mean-groupsize))))
-                        (assert! (equalv points (+v points-for-partitioncount 
-                                                    points-for-meangroupsize
-                                                    points-for-deviation
-                                                    points-for-distancefrommedian))))
-                      (print (list partitions :points points :list rs))
-                      rs))))))))
-      points))))))
-
 (in-package :OPENMUSIC)
-(defmethod get-boxcallclass-fun ((self (eql 'grouplist-nondeterministic))) 'screamerboxes)
-(defmethod! grouplist-nondeterministic (list min-groupsize max-groupsize wpartitioncount wmeangroupsize wdeviation wdistancefrommedian)
-  :icon 235 
-  :indoc '("list" "min-groupsize" "max-groupsize" "wpartitioncount" "wmeangroupsize" "wdeviation" "wdistancefrommedian")
-  :initvals '(nil 1 5 0 1 1 -1)
-  (s::grouplist-nondeterministic min-groupsize max-groupsize wpartitioncount wmeangroupsize wdeviation wdistancefrommedian))
 
-(in-package :OPENMUSIC)
 (defmethod! group-seqc-by-motion-type (sequence)
   :icon 261
   (let (fragments)
@@ -173,26 +92,100 @@
                           (register (list (flatten-with-continuation seqc next) 
                                           seqc
                                           next))))
-                    sequence-list)))
-      
-      (mapcar #'(lambda (voices2x) 
-                  (register-fragments (group-sequence voices2x)))
-              (list2comb sequence))
+                    sequence-list))
+         (group-seqc-by-motion-type-internal (sequence)
+           (mapcar #'(lambda (voices2x) 
+                       (register-fragments (group-sequence voices2x)))
+                   (list2comb sequence))
 
-      (maplist #'(lambda (sequences)
-               (let ((seqc (car sequences))
-                     (next (if (cdr sequences)
-                               (cadr sequences)
-                             (make-list (length (car sequences)) :initial-element '(nil)))))
-                 (mapcar #'(lambda (seqc next)
-                             (register (list (flatten-with-continuation seqc next) 
-                                          seqc
-                                          next)))
-                         (list2comb seqc)
-                         (list2comb next))))
-               (group-sequence sequence))
+           (maplist #'(lambda (sequences)
+                        (let ((seqc (car sequences))
+                              (next (if (cdr sequences)
+                                        (cadr sequences)
+                                      (make-list (length (car sequences)) :initial-element '(nil)))))
+                          (mapcar #'(lambda (seqc next)
+                                      (register (list (flatten-with-continuation seqc next) 
+                                                      seqc
+                                                      next)))
+                                  (list2comb seqc)
+                                  (list2comb next))))
+                    (group-sequence sequence))
+           (reverse fragments))
 
-      (reverse fragments))))
+         (group-seqc-by-motion-type-2 (sequence)
+           (mapcar
+            #'(lambda (xs)
+                (let ((trans (mat-trans xs)))
+                  (if (and (has-null-values (car (reverse trans)))
+                           (notany #'has-null-values (butlast trans)))
+                      (mat-trans (butlast trans))
+                    xs)))
+            (mapcar
+             #'(lambda (xs)
+                 (let ((trans (mat-trans xs)))
+                   (if (and (has-null-values (car trans))
+                            (notany #'has-null-values (cdr trans)))
+                       (mat-trans (cdr trans))
+                     xs)))
+             (remove-if
+              #'(lambda (xs)
+                  (and (= 2 (length (mat-trans xs)))
+                       (or (has-null-values (car xs))
+                           (has-null-values (cadr xs)))))
+              (remove nil 
+                      (flat1
+                       (mapcar #'(lambda (xs) (group-two-voices (car xs) (cadr xs))) 
+                               (mapcar #'flatten-seqc (list2comb sequence)))))))))
+         
+         (group-two-voices (voice1 voice2)
+           (mapcar
+            #'mat-trans
+            (maplist
+             #'(lambda (xs)
+                 (let ((group (car xs))
+                       (continuation (if (and (cdr xs) (not (every #'null (caadr xs))))
+                                         (list (caadr xs))
+                                       nil)))
+                   (if (and (= 1 (length group))
+                            (every #'null (car group)))
+                       nil
+                     (append group continuation))))
+  (labels
+      ((empty? (xs) (every #'null xs)))
+    (mapcar #'(lambda (xs)
+                ;(print (format nil "xs: ~A" xs))
+                xs) ; (remove-if #'empty? xs))
+            (group-list-on 
+             (let ((i NIL))
+               #'(lambda (xs ys)
+                   ; (fecho NIL "xs: ~A ys: ~A" xs ys)
+                   (cond 
+                    ((every #'null xs)
+                     (setf i NIL)
+                     NIL)
+                    ((every #'null ys)
+                     (setf i NIL)
+                     NIL)
+                    ;; ??
+                    ((or (and (not (every #'null (list (car xs) (car ys))))
+                              (some #'null (list (car xs) (car ys))))
+                         (and (not (every #'null (list (cadr xs) (cadr ys))))
+                              (some #'null (list (cadr xs) (cadr ys)))))
+                     (setf i NIL)
+                     NIL)
+                    ((and (equal (car xs) (car ys))
+                          (or (null i) (= i 0)))
+                     (setf i 0)
+                     T)
+                    ((and (equal (cadr xs) (cadr ys))
+                          (or (null i) (= i 1)))
+                     (setf i 1)
+                     T)
+                    (T
+                     (setf i NIL)
+                     NIL))))
+             (remove-consecutive-duplicates (mat-trans (list voice1 voice2))))))))))
+      (group-seqc-by-motion-type-2 sequence))))
 
 
 (defmethod! group-and-apply-definitions (sequence selector-fn definition &rest defns)
@@ -322,3 +315,33 @@
           (mat-trans (flatten-seqc voice1-2))))
      (combinations-of2 sequence)))
   sequence)
+
+
+
+(in-package :SCREAMER)
+
+(cl:defun interleaf--sequence-counter (start end)
+  (loop for i from start while (<= i end) collect i))
+
+(defun interleaf-internal (list1 list2)
+  (cond
+   ((and (null list1) (null list2)) nil)
+   ((null list1) (Fail))
+   ((null list2) (Fail))
+   (T
+  (let* ((seq1 (interleaf--sequence-counter 1 (min (length list1) 2)))
+           (seq2 (interleaf--sequence-counter 1 (min (length list2) 2)))
+           (m (a-random-member-of seq1))
+          (n  (a-random-member-of seq2)))
+      (append (subseq list1 0 m) (subseq list2 0 n) (interleaf (subseq list1 m) (subseq list2 n)))))))
+
+(defun interleaf (list1 list2)
+  (cond
+   ((null list1) list2)
+   ((null list2) list1)
+   (T (either (interleaf-internal list1 list2) (interleaf-internal list2 list1)))))
+
+(in-package :OPENMUSIC)
+(defmethod get-boxcallclass-fun ((self (eql 'interleaf))) 'screamerboxes)
+(defmethod! interleaf (list1 list2) (s::interleaf list1 list2))
+

@@ -9,6 +9,7 @@
             "general" "eventsms" "flatten seqc" "misc" "visual"))
 (format *om-stream* "~%")
 (setf screamer::*echo-stream* *om-stream*)
+(paradigm--print-warnings)
 (fill-library '(("sequences" 
                  Nil 
                  Nil 

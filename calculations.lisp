@@ -117,5 +117,5 @@
 (defun an?integer-above (low &optional name) (if name (screamer:an-integer-abovev low name) (screamer:an-integer-abovev low)))
 (defun an?integer-below (high &optional name) (if name (screamer:an-integer-belowv high name) (screamer:an-integer-belowv high)))
 (defun an?integer-between (low high &optional name) (if name (screamer:an-integer-betweenv low high name) (screamer:an-integer-betweenv low high)))
-
+(defun ?count-trues (list) (apply #'count-truesv list))
 

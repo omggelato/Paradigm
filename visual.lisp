@@ -1,4 +1,5 @@
 (in-package :OPENMUSIC)
+
 (defmethod get-boxcallclass-fun ((self (eql 'value-of))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'apply-substitution))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'bound?))) 'screamerboxes)
@@ -48,10 +49,13 @@
 (defmethod get-boxcallclass-fun ((self (eql 'bt-group-list))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'multiple-choice-list))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'calltrain1x))) 'screamerboxes)
+
+(defmethod get-boxcallclass-fun ((self (eql 'split-list))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'an-ordered-partition-of))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'a-subset-of))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'a-permutation-of))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'setof))) 'screamerboxes)
+
 (defmethod get-boxcallclass-fun ((self (eql 'prolog-append))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'prolog-difference))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'prolog-first))) 'screamerboxes)
@@ -71,9 +75,18 @@
 (defmethod get-boxcallclass-fun ((self (eql 'prolog-transpose))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'prolog-union))) 'screamerboxes)
 
+
+
 (defmethod! ?template (template &optional map)
   :numouts 2
   (multiple-value-bind (xs map) (s::?template template)
+    (values xs map)))
+
+(defmethod! rewrite-?template (template map) (s::rewrite-?template template map))
+
+(defmethod! make-screamer-variables (template &optional map)
+  :numouts 2
+  (multiple-value-bind (xs map) (s::template (rewrite-?template template map))
     (values xs map)))
 
 (defmethod! ?apply (f x &rest xs)
@@ -82,12 +95,14 @@
 (defmethod! ?funcall (f &rest xs)
   (apply #'s:funcallv (append (list f) xs)))
 
-(defmethod! ?solution (x &key force-fun cost-fun terminate? order skip cut-after onmatch collect-to abort-after)
-  (s::?solution x 
+(defmethod! ?solution (input &key force-fun cost-fun terminate-fun order-fun valuation skip cut-after onmatch collect-to abort-after)
+  :icon 150            
+  (s::?solution input
             :force-fun force-fun
             :cost-fun cost-fun
-            :terminate? terminate?
-            :order order
+            :terminate-fun terminate-fun
+            :order-fun order-fun
+            :valuation valuation
             :skip skip
             :cut-after cut-after         
             :onmatch onmatch
@@ -228,17 +243,9 @@ directly nested in a call to ASSERT!, are similarly transformed.
 
 (defmethod! ?variables-in (input) (s::?variables-in input))
 
-(defmethod! ?=any (x sequence)
-  (cond
-   ((null x) T)
-   ((null sequence) nil)
-   ((consp x)
-    (andv (?=any (car x) sequence)
-          (?=any (cdr x) sequence)))
-   ((cdr sequence)
-    (orv (=v x (car sequence))
-         (?=any x (cdr sequence))))
-   (T (=v x (car sequence)))))
+(defmethod! ?/=any (x sequence) (s::?/=any x sequence))
+
+(defmethod! each?/=any (xs sequence) (s::each?/=any xs sequence))
 
 (defmethod! group-list-on (test sequence &key key)
   (let ((test (or test #'equalp)))
@@ -260,7 +267,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
   (map-func
    #'(lambda (k) 
        (let ((entry (assoc k map)))
-         (if entry (cdr entry) nil)))
+         (if entry (cdr entry) k)))
    list))
 
 (defmethod! list-structure-equal (list1 list2 &key test)
@@ -331,9 +338,29 @@ directly nested in a call to ASSERT!, are similarly transformed.
 
 
 (defmethod! fecho (input message &rest args)
-  (apply #'format 
-         (append (list *om-stream* (concatenate 'string message "~%")) args))
+  (if (and (null args) (search "~A" message))
+      (apply #'format 
+             (append (list *om-stream* (concatenate 'string message "~%")) (list input)))
+    (apply #'format 
+           (append (list *om-stream* (concatenate 'string message "~%")) args)))
   input)
+
+(defparameter *paradigm--print-warnings* nil)
+
+(defmethod! paradigm--print-warnings ()
+            (setf s::*echo-stream* om-lisp::*om-stream*)
+            (setf *paradigm--print-warnings* 10))
+            
+(defmethod! paradigm--hide-warnings ()
+            (setf s::*echo-stream* om-lisp::*om-stream*)
+            (setf *paradigm--print-warnings* nil))
+
+(defmethod! wecho (input message &rest args)
+   (if *paradigm--print-warnings* 
+       (apply #'fecho (append (list input message) args))))
+
+(defmethod! split-list (list)
+  (s::split-list list))
 
 (defmethod! an-ordered-partition-of (x)
   nil)
@@ -344,7 +371,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! a-permutation-of (list)
   nil)
 (defmethod! prolog-append (x y z)
-  nil)
+  (s::prolog-append x y z))
 (defmethod! prolog-difference (y m z)
   nil)
 (defmethod! prolog-first (a b) 
@@ -483,7 +510,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! ?floor (x) (s:funcallv #'floor x))
 (defmethod! ?ceiling (x) (s:funcallv #'ceiling x))
 (defmethod! ?sum (xs) (s::?+ xs))
-(defmethod! ?count-trues (&rest xs) (apply #'s:count-truesv xs))
+(defmethod! ?count-trues (list) (apply #'s:count-truesv list))
 
 (defmethod! ?listdx (list)
   :icon 235
@@ -518,18 +545,23 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod get-boxcallclass-fun ((self (eql '?list/=))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?and))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?or))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'list?and))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'list?or))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?not))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?equal))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?member))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '!member))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?=member))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?/=any))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'each?/=any))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?integerp))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?realp))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?numberp))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?booleanp))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'all-differentv))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?between))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '?within))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'within!))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?list<))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?list>))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?list<=))) 'screamerboxes)
@@ -539,6 +571,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod get-boxcallclass-fun ((self (eql '?lists=))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?lists/=))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'one?=))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'one?eq))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'not-one?=))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'each?=oneof))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'group-list-nondeterministic))) 'screamerboxes)
@@ -546,9 +579,11 @@ directly nested in a call to ASSERT!, are similarly transformed.
   :icon 235
   (s::group-list-nondeterministic list segmentation mode))
 
-(defmethod! ?and (x y &rest ys) (apply #'s:andv (append (list x y) ys)))
-(defmethod! ?or (x y &rest ys) (apply #'s:orv (append (list x y) ys)))
+(defmethod! ?and (x &rest xs) (apply #'s::?and (append (list x) xs)))
+(defmethod! ?or (x &rest xs)  (apply #'s::?or (append (list x) xs)))
 (defmethod! ?not (x) (s:notv x))
+(defmethod! list?and (xs) (s::list?and xs))
+(defmethod! list?or (xs) (s::list?or xs))
 (defun ?comparison-argument-list (x list) (flatt (append (list x) list)))
 (defmethod! ?< (x &rest xs) (apply #'s:<v (?comparison-argument-list x xs)))
 (defmethod! ?> (x &rest xs) (apply #'s:>v (?comparison-argument-list x xs)))
@@ -594,6 +629,8 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! ?min (x &rest xs) :icon 209 (apply #'s::?min (append (list x) xs)))
 (defmethod! all-differentv (x &rest xs) (apply #'s::all-differentv (append (list x) xs)))
 (defmethod! ?between (x min max) (s::?between x min max))
+(defmethod! ?within (x min max) (s::?within x min max))
+(defmethod! within! (x min max) (s::within! x min max))
 (defmethod! ?list< (x value) (s::?list< x value))
 (defmethod! ?list<= (x value) (s::?list<= x value))
 (defmethod! ?list> (x value) (s::?list> x value))
@@ -604,33 +641,27 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! ?lists/= (xs ys) (s::?lists/= xs ys))
 (defmethod! one?= (x sequence) (s::one?= x sequence))
 (defmethod! each?=oneof (x sequence) (s::each?=oneof x sequence))
-
+(defmethod! one?eq (x sequence) (s::one?eq x sequence))
 ;; transformations.lisp
 (defmethod get-boxcallclass-fun ((self (eql 'map?car))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map?list))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map?and))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map?or))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'maplist?and))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'maplist?or))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map?func))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map?levels))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map-func))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map2func))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map3func))) 'screamerboxes)
-;(defmethod get-boxcallclass-fun ((self (eql 'maplcr))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'map?lcr))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'map?car))) self)
+(defmethod get-boxcallclass-fun ((self (eql 'map?list))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'map?list))) self)
+(defmethod get-boxcallclass-fun ((self (eql 'map?and))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'map?and))) self)
+(defmethod get-boxcallclass-fun ((self (eql 'map?or))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'map?or))) self)
+(defmethod get-boxcallclass-fun ((self (eql 'maplist?and))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'maplist?and))) self)
+(defmethod get-boxcallclass-fun ((self (eql 'maplist?or))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'maplist?or))) self)
+(defmethod get-boxcallclass-fun ((self (eql 'map?func))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'map?func))) self)
+(defmethod get-boxcallclass-fun ((self (eql 'map?levels))) 'screamerboxes)
 (defmethod get-real-funname ((self (eql 'map?levels))) self)
-(defmethod get-real-funname ((self (eql 'map-func))) self)
-(defmethod get-real-funname ((self (eql 'map2func))) self)
-(defmethod get-real-funname ((self (eql 'map3func))) self)
-(defmethod! map?car ((fn function) &rest xs)
+(defmethod get-boxcallclass-fun ((self (eql 'map?lcr))) 'screamerboxes)
+(defmethod get-real-funname ((self (eql 'map?lcr))) self)
+(defmethod! map?car (fn &rest xs)
   (apply #'mapcar (append (list fn) xs)))
 (defmethod! map?list (fn &rest xs)
   (apply #'maplist (append (list fn) xs)))
@@ -642,16 +673,29 @@ directly nested in a call to ASSERT!, are similarly transformed.
   (reduce #'andv (apply #'maplist (append (list fn) xs))))
 (defmethod! maplist?or (fn &rest xs)
   (reduce #'orv (apply #'maplist (append (list fn) xs))))
-(defmethod! map?func ((fn function) &rest xs)
+(defmethod! map?func (fn &rest xs)
   (error (format nil "MAP?FUNC improper visual-box call: fn: ~A [~A]" fn xs)))
 (defmethod! map?levels (fn &rest xs)
   (error (format nil "MAP?LEVELS improper visual-box call: fn: ~A [~A]" fn xs)))
-(defmethod! map-func ((fn function) list &key with-levels level-min level-max)
+
+(defmethod! map-func (fn list &key with-levels level-min level-max)
   (s::map-func fn list :with-levels with-levels :level-min level-min :level-max level-max))
-(defmethod! map2func (fn list1 list2) (s::map?func list1 list2))
-(defmethod! map3func (fn list1 list2 list3) (s::map?func list1 list2 list3))
+
+(defmethod! map2func (fn list1 list2)
+  (s::map2func fn list1 list2))
+
+(defmethod! map3func (fn list1 list2 list3)
+  (s::map3func fn list1 list2 list3))
+
+(defmethod! map-levels>= (fn threshold xs)
+  (s::map-levels>= fn threshold xs))
+
+(defmethod! map-list-levels>= (fn threshold xs)
+  (s::map-list-levels>= fn threshold xs))
+
 (defmethod! map?lcr (fn list)
   (error (format nil "MAP?LCR improper visual-box call: fn: ~A [~A]" fn xs)))
+
 (defmethod! maplcr (fn list) 
   :icon 147
   (labels ((maplcr-internal (l c r)
@@ -663,8 +707,6 @@ directly nested in a call to ASSERT!, are similarly transformed.
                                    (cdr r))
                 nil))))
     (maplcr-internal nil (list (car list)) (cdr list))))
-
-; (defmethod* mat-trans ((matrix list)) :icon 235 (s::mat-trans matrix))
 
 (defmethod! nsucc (input n &key step list-padding pad-character)
   :icon 235            
@@ -698,6 +740,11 @@ directly nested in a call to ASSERT!, are similarly transformed.
                    (T T)))))
       (reverse stack)))))
 
+(defmethod! sequenc (x &rest xs)
+  :icon 161
+  (if xs
+      (apply #'sequenc (cdr (append (list x) xs)))
+  x))
 
 (defun paradigm--format-timestamp (timestamp)
   (multiple-value-bind

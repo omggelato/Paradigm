@@ -37,6 +37,44 @@
     ;(print (format nil "important! beat-partitions: ~A" beat-partitions))
     (process-duration-groups-internal (flat beat-partitions) timepoints-scaled)))
 
+(defun decimals-for-consecutive-repeated-variables (voice-midinotes voice-variables)
+  (let ((last nil))
+    (map2func #'(lambda (midi-value variable)
+                  (let ((value (if (and midi-value variable last (equal variable last))
+                                   (float midi-value)
+                                 midi-value)))
+                    (setf last variable)
+                    value))
+              voice-midinotes
+              voice-variables)))
+
+(defun combine-decimal-duration-values (xs)
+  ;; (60 60.0    62 62.0 64  65 67
+  ;; (1 2.0 (3 (1 3.0 2)) 4 5) --> (3 (3 (1 5)) 4 5)
+  (cond
+   ((null xs) nil)
+   
+   ((and (listp xs) 
+         (listp (car xs))) ; (3 . (1 3.0 2))
+    (append
+     (list 
+      (list (caar xs) 
+            (combine-decimal-duration-values (cadar xs))))
+      (combine-decimal-duration-values (cdr xs))))
+
+   ((and (listp xs) (cdr xs)) ; (1 3.0 2)
+    (cond 
+     ((and (floatp (cadr xs))
+           (or (and (> (car xs) 0) (> (cadr xs) 0))
+                (and (< (car xs) 0) (< (cadr xs) 0))))               
+      (combine-decimal-duration-values (append (list (+ (floor (car xs)) (floor (cadr xs)))) (cddr xs))))
+     (T 
+      (append (list (floor (car xs)))
+              (combine-decimal-duration-values (append (list (floor (cadr xs))) (cddr xs)))))))
+   
+   (T xs)))
+
+
 (cl:defstruct timee value flag)
 
 (defun setf-timee-value (x d)
