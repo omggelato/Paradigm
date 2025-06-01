@@ -266,11 +266,12 @@
                     (when (< count skip) (fail))
                     (when (and cut-after (> cut-after 0) 
                                (> count (+ skip cut-after))) (fail))
-                    (funcall onmatch (list (cons :match-count (incf match-count))
-                                           (cons :cycle-count cycle-count)
-                                           (cons :timestamp start-timestamp)
-                                           (cons :match match)))
-                    (global (setf last-count count))
+                    (global 
+                      (funcall onmatch (list (cons :match-count (incf match-count))
+                                             (cons :cycle-count cycle-count)
+                                             (cons :timestamp start-timestamp)
+                                             (cons :match match)))
+                      (setf last-count count))
                     match)
             ))))))
               

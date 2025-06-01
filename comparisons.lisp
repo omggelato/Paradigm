@@ -84,9 +84,8 @@
 (defun one?= (x sequence)
   (cond
    ((null sequence) nil)
-   (T (orv (=v x (car sequence))
-           (one?= x (cdr sequence))))))
-
+   (T
+    (apply #'orv (map?car #'(lambda (y) (=v x y)) sequence)))))
 
 (defun one?eq (x sequence)
   (cond
@@ -103,13 +102,12 @@
 ;        (T (one?= x sequence))))
 
 (defun each?=oneof (x sequence)
-  (map?and #'(lambda (y) (one?= y sequence)) (?xs-in x)))
+  (apply #'andv (map?car #'(lambda (y) (one?= y sequence)) (?xs-in x))))
 
 (defun ?/=any (x sequence)
   (cond
    ((null sequence) T)
-   (T (andv (/=v x (car sequence))
-           (?/=any x (cdr sequence))))))
+   (T (apply #'andv (map?car #'(lambda (y) (/=v x y)) sequence)))))
 
 ;(defun each?/=any-internal (xs sequence)
 ;  (cond ((null xs) nil)
@@ -119,7 +117,7 @@
 ;        ((consp xs) (each?/=any-internal (car xs) sequence))
 ;        (T (?/=any xs sequence))))
 (defun each?/=any (x sequence) 
-  (map?and #'(lambda (y) (?/=any y sequence)) (?xs-in x)))
+  (apply #'andv (map?car #'(lambda (y) (?/=any y sequence)) (?xs-in x))))
 
 (defun ?comparison-arguments (x list) (flatt (append (list x) list)))
 (defun ?< (x &rest xs) (apply #'<v (?oper-arguments x xs)))
