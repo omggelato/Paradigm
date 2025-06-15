@@ -1,6 +1,28 @@
 (in-package :OPENMUSIC)
 
+(defmethod get-boxcallclass-fun ((self (eql 'a-boolean))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer-above))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'an-integer-below))) 'screamerboxes)
+
+(defmethod get-boxcallclass-fun ((self (eql '?template))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'every!!))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'assert!!))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql '?solution))) 'screamerboxes)
+
+(defmethod get-boxcallclass-fun ((self (eql 'any!!))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'all!!))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'and!!))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'assert!!-and))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'apply?cont))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql '?apply))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql '?funcall))) 'screamerboxes) ; deleted
+
+(defmethod get-boxcallclass-fun ((self (eql 'linear-force))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'divide-and-conquer-force))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'random-force))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'value-of))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'assert!))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'apply-substitution))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'bound?))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'ground?))) 'screamerboxes)
@@ -28,29 +50,14 @@
 (defmethod get-boxcallclass-fun ((self (eql 'an-integer-betweenv))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'minv))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'maxv))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'a-boolean))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'an-integer))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'an-integer-above))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'an-integer-below))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql '?template))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql '?apply))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql '?funcall))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql '?solution))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'assert!))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'any!!))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'all!!))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'and!!))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'every!!))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'assert!!-and))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'assert!!))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'apply?cont))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'choice-box))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'function-choice-box))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'bt-group-list))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'multiple-choice-list))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql 'calltrain1x))) 'screamerboxes)
 
-(defmethod get-boxcallclass-fun ((self (eql 'split-list))) 'screamerboxes)
+(defmethod get-boxcallclass-fun ((self (eql 'choice-box))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'function-choice-box))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'bt-group-list))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'multiple-choice-list))) 'screamerboxes) ; deleted
+(defmethod get-boxcallclass-fun ((self (eql 'calltrain1x))) 'screamerboxes) ; deleted
+
+(defmethod get-boxcallclass-fun ((self (eql 'split-list))) 'screamerboxes) ; deleted
 (defmethod get-boxcallclass-fun ((self (eql 'an-ordered-partition-of))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'a-subset-of))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'a-permutation-of))) 'screamerboxes)
@@ -88,12 +95,6 @@
   :numouts 2
   (multiple-value-bind (xs map) (s::template (rewrite-?template template map))
     (values xs map)))
-
-(defmethod! ?apply (f x &rest xs)
-  (apply #'s:applyv (append (list f x) xs)))
-
-(defmethod! ?funcall (f &rest xs)
-  (apply #'s:funcallv (append (list f) xs)))
 
 (defmethod! ?solution (input &key force-fun cost-fun terminate-fun order-fun valuation skip cut-after onmatch collect-to abort-after)
   :icon 150            
@@ -135,6 +136,13 @@ in a call to ASSERT!, or directly nested in a call to NOTV which is in turn
 directly nested in a call to ASSERT!, are similarly transformed.
 "
  -1)
+
+
+(defmethod! ?apply (f x &rest xs) ; deleted
+  (apply #'s:applyv (append (list f x) xs)))
+
+(defmethod! ?funcall (f &rest xs) ; deleted
+  (apply #'s:funcallv (append (list f) xs)))
 
 (defmethod! apply?cont (x &rest xs) -1)
 (defmethod! and!! (x &rest xs) -1)
@@ -357,7 +365,8 @@ directly nested in a call to ASSERT!, are similarly transformed.
 
 (defmethod! wecho (input message &rest args)
    (if *paradigm--print-warnings* 
-       (apply #'fecho (append (list input message) args))))
+       (apply #'fecho (append (list input message) args)))
+   input)
 
 (defmethod! split-list (list)
   (s::split-list list))
@@ -409,6 +418,9 @@ directly nested in a call to ASSERT!, are similarly transformed.
 
 
 (defmethod! value-of (x) (s:value-of x))
+(defmethod! linear-force (x) (s:linear-force x))
+(defmethod! divide-and-conquer-force (x) (s:divide-and-conquer-force x))
+(defmethod! random-force (x) (s::random-force x))
 (defmethod! apply-substitution (x) (s:apply-substitution x))
 (defmethod! bound? (x) (s:bound? x))
 (defmethod! ground? (x) (s:ground? x))
@@ -578,7 +590,6 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! group-list-nondeterministic (list segmentation mode)
   :icon 235
   (s::group-list-nondeterministic list segmentation mode))
-
 (defmethod! ?and (x &rest xs) (apply #'s::?and (append (list x) xs)))
 (defmethod! ?or (x &rest xs)  (apply #'s::?or (append (list x) xs)))
 (defmethod! ?not (x) (s:notv x))

@@ -113,29 +113,35 @@
            (reverse fragments))
 
          (group-seqc-by-motion-type-2 (sequence)
-           (mapcar
-            #'(lambda (xs)
-                (let ((trans (mat-trans xs)))
-                  (if (and (has-null-values (car (reverse trans)))
-                           (notany #'has-null-values (butlast trans)))
-                      (mat-trans (butlast trans))
-                    xs)))
-            (mapcar
-             #'(lambda (xs)
-                 (let ((trans (mat-trans xs)))
-                   (if (and (has-null-values (car trans))
-                            (notany #'has-null-values (cdr trans)))
-                       (mat-trans (cdr trans))
-                     xs)))
-             (remove-if
+           (remove-duplicates            
+            (remove
+             nil
+             (mapcar
               #'(lambda (xs)
-                  (and (= 2 (length (mat-trans xs)))
-                       (or (has-null-values (car xs))
-                           (has-null-values (cadr xs)))))
-              (remove nil 
-                      (flat1
-                       (mapcar #'(lambda (xs) (group-two-voices (car xs) (cadr xs))) 
-                               (mapcar #'flatten-seqc (list2comb sequence)))))))))
+                  (let ((trans (mat-trans xs)))
+                    (if (and (has-null-values (car (reverse trans)))
+                             (notany #'has-null-values (butlast trans)))
+                        (mat-trans (butlast trans))
+                      xs)))
+              (mapcar
+               #'(lambda (xs)
+                   (let ((trans (mat-trans xs)))
+                     (if (and (has-null-values (car trans))
+                              (notany #'has-null-values (cdr trans)))
+                         (mat-trans (cdr trans))
+                       xs)))
+               (remove-if
+                #'(lambda (xs)
+                    (or (= (length (mat-trans xs)) 1)
+                        (and (<= (length (mat-trans xs)) 2)
+                             (or (has-null-values (car xs))
+                                 (has-null-values (cadr xs))))))
+                (remove nil 
+                        (flat1
+                         (mapcar #'(lambda (xs) (group-two-voices (car xs) (cadr xs))) 
+                                 (mapcar #'flatten-seqc (list2comb sequence)))))))))
+            :from-end T
+            :test #'(lambda (xs ys) (or (equal xs ys) (equal xs (reverse ys)) (equal (reverse xs) ys)))))
          
          (group-two-voices (voice1 voice2)
            (mapcar
@@ -150,41 +156,38 @@
                             (every #'null (car group)))
                        nil
                      (append group continuation))))
-  (labels
-      ((empty? (xs) (every #'null xs)))
-    (mapcar #'(lambda (xs)
-                ;(print (format nil "xs: ~A" xs))
-                xs) ; (remove-if #'empty? xs))
-            (group-list-on 
-             (let ((i NIL))
-               #'(lambda (xs ys)
+             (labels
+                 ((empty? (xs) (every #'null xs)))
+               (group-list-on 
+                (let ((i NIL))
+                  #'(lambda (xs ys)
                    ; (fecho NIL "xs: ~A ys: ~A" xs ys)
-                   (cond 
-                    ((every #'null xs)
-                     (setf i NIL)
-                     NIL)
-                    ((every #'null ys)
-                     (setf i NIL)
-                     NIL)
-                    ;; ??
-                    ((or (and (not (every #'null (list (car xs) (car ys))))
-                              (some #'null (list (car xs) (car ys))))
-                         (and (not (every #'null (list (cadr xs) (cadr ys))))
-                              (some #'null (list (cadr xs) (cadr ys)))))
-                     (setf i NIL)
-                     NIL)
-                    ((and (equal (car xs) (car ys))
-                          (or (null i) (= i 0)))
-                     (setf i 0)
-                     T)
-                    ((and (equal (cadr xs) (cadr ys))
-                          (or (null i) (= i 1)))
-                     (setf i 1)
-                     T)
-                    (T
-                     (setf i NIL)
-                     NIL))))
-             (remove-consecutive-duplicates (mat-trans (list voice1 voice2))))))))))
+                      (cond 
+                       ((every #'null xs)
+                        (setf i NIL)
+                        NIL)
+                       ((every #'null ys)
+                        (setf i NIL)
+                        NIL)
+                       ;; ??
+                       ((or (and (not (every #'null (list (car xs) (car ys))))
+                                 (some #'null (list (car xs) (car ys))))
+                            (and (not (every #'null (list (cadr xs) (cadr ys))))
+                                 (some #'null (list (cadr xs) (cadr ys)))))
+                        (setf i NIL)
+                        NIL)
+                       ((and (equal (car xs) (car ys))
+                             (or (null i) (= i 0)))
+                        (setf i 0)
+                        T)
+                       ((and (equal (cadr xs) (cadr ys))
+                             (or (null i) (= i 1)))
+                        (setf i 1)
+                        T)
+                       (T
+                        (setf i NIL)
+                        NIL))))
+                (remove-consecutive-duplicates (mat-trans (list voice1 voice2)))))))))
       (group-seqc-by-motion-type-2 sequence))))
 
 
@@ -345,3 +348,43 @@
 (defmethod get-boxcallclass-fun ((self (eql 'interleaf))) 'screamerboxes)
 (defmethod! interleaf (list1 list2) (s::interleaf list1 list2))
 
+
+(in-package :OPENMUSIC)
+(defmethod! fuse-sequence-lists (left right &optional (alignment 1))
+  :icon 230
+  :initvals '(((60 62) (64 (65 67)) (67 70)) ((65 60) (69 67)))
+  :indoc '("a sequential list of midi-values" "a sequential list of midi-values" "alignment option for place-holder symbols added for sequences that do not match")
+  :menuins '((2 (("match-from-first" 1) ("match-from-last" 2))))
+  :doc "Joins two lists containing sequential lists of midi-values"
+  (labels
+      ((fill-in-sequence (seqc count)
+         (let ((placeholder 
+                (cond
+                 ((= 0 (length seqc)) NIL)
+                 ((some #'atom seqc) NIL)
+                 (T
+                  (make-list (length (car seqc)) :INITIAL-ELEMENT NIL)))))
+           (cond
+            ((eq 2 alignment)
+             (append (mapcar #'(lambda (x) placeholder) (make-list count)) seqc))
+            (T
+             (append seqc (mapcar #'(lambda (x) placeholder) (make-list count)))))))
+       (init (input)
+         (cond
+          ((null input) '(NIL))
+          ((atom input) (list input))
+          (T input)))
+       (append-sequences (x y) (append (init x) (init y))))
+  (cond 
+   ((null left) right)
+   ((null right) left)
+   ((< (length left) (length right))
+    (fuse-sequence-lists (fill-in-sequence left (- (length right) (length left))) right NIL))
+   ((> (length left) (length right))
+    (fuse-sequence-lists left (fill-in-sequence right (- (length left) (length right))) NIL))
+   (T
+    (mapcar #'append-sequences
+            left
+            right)))))
+   
+    

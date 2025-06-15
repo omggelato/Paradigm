@@ -16,7 +16,7 @@
    (T variables)))
 
 (defun ?xs-in (input)
-  (?xs-in-internal input '()))
+  (reverse (?xs-in-internal input '())))
 
 (defun ?xs-in-internal (x variables)
   (cond
@@ -43,9 +43,19 @@
 (defun ?numbers-in (x)
   (?numbers-in-internal x '()))
 
+(defun flatten (lst &aux (re '()))
+  (cond
+    ((null lst) '())
+    ((consp (car lst))
+     (append (flatten (car lst))
+             (append (flatten (cdr lst))
+                     re)))
+    (t (cons (car lst)
+             (append (flatten (cdr lst)) re)))))
 
 (defun flatt (x)
   (append
+
    (cond
     ((null x) nil)
     ((and (consp x) (consp (car x)))
@@ -53,9 +63,9 @@
     ((consp x)
      (list (car x)))
     (T (list x)))
-   (if (and (consp x) 
-            (cdr x))
-       (flatt (cdr x)) 
+
+   (if (and (consp x) (cdr x))
+       (flatt (cdr x))
      NIL)))
 
 (cl:defun rewrite-?template (template map)
@@ -422,14 +432,15 @@
       (list-depth-internal list 1)
       depth)))
 
-(defun flatt (x)
-  (append
-   (cond
-    ((null x) nil)
-    ((not (consp (car x))) (list (car x)))
-    (T (flatt (car x))))
-   (if (cdr x)
-       (flatt (cdr x)))))
+;(defun flatt (x)
+;  (print (format nil "flatt#2: ~A" x))
+;  (append
+;   (cond
+;    ((null x) nil)
+;    ((not (consp (car x))) (list (car x)))
+;    (T (flatt (car x))))
+;   (if (cdr x)
+;       (flatt (cdr x)))))
 
 (defun group-list-on (test sequence)
   (let ((test (or test #'equalp)))
@@ -1431,13 +1442,17 @@
    ((not (some #'(lambda (x) (<= x (length list))) segmentation))
      (fail))
    (T
-    (let ((items (a-random-member-of segmentation)))
+    (let ((items (a-member-of segmentation)))
       (unless (<= items (length list))
         (fail))
-      (cons (subseq list 0 items)
-              (group-list-nondeterministic (subseq list items (length list))
-                                           segmentation
-                                           mode))))))
+      (let ((first (subseq list 0 (- (length list) items)))
+            (last (subseq list (- (length list) items) (length list))))
+        (if first
+            (append (group-list-nondeterministic first
+                                               segmentation
+                                               mode)
+                  (list last))
+          (list last)))))))
   
 
 

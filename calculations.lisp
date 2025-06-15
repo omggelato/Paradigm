@@ -22,16 +22,10 @@
         x)))))
 
 (cl:defun %v-calls-native-function ()
-  (screamer::defun ?% (n d)
-    (cond
-     ((null n) nil)
-     ((consp n) 
-      (cons (%v (car n) d)
-            (if (cdr n) (%v (cdr n) d) NIL)))
-     (T 
-      (let ((x (an-integer-betweenv 0 (1- d))))
-        (assert! (equalv x (funcallv #'mod n d)))
-        x)))))
+  (screamer::defun %v (n d) (s:funcallv #'mod n d)))
+
+(cl:defun ?%-restricts-bounds () (%v-restricts-bounds))
+(cl:defun ?%-calls-native-function () (%v-calls-native-function))
 
 (%v-restricts-bounds)
 ; (%v-calls-native-function)
