@@ -220,12 +220,18 @@ directly nested in a call to ASSERT!, are similarly transformed.
            (push value (slot-value self 'value))    
            (set-slot self 'value (slot-value self 'value))))
          value))
-    (if first
-        (insert-into self value)
-      (append-to self value))))
+    (when self
+      (if first
+          (insert-into self value)
+        (append-to self value)))
+    value))
 
-(defmethod! reset-store ((self store)) :icon 237
-  (set-slot self 'value nil))
+(defmethod! reset-store ((self store)) 
+  :icon 237 (set-slot self 'value nil))
+
+(defmethod! copy-to ((self store) (copy store)) 
+  :icon 237
+ (set-slot copy 'value (copy-list (get-slot self 'value))))
 
 (defmethod! grouplist-nondeterministic (list min-groupsize max-groupsize wpartitioncount wmeangroupsize wdeviation wdistancefrommedian)
   :icon 235 
@@ -345,6 +351,22 @@ directly nested in a call to ASSERT!, are similarly transformed.
     (reverse stack)))
 
 
+
+(defparameter *paradigm--print-warnings* nil)
+
+(defmethod! paradigm--print-warnings ()
+  :icon 642
+  (setf *backtrack-debug* T)
+  (setf *paradigm--print-warnings* 10)
+  (setf s::*screamer-ext--echo-stream* om-lisp:*om-stream*)
+  (setf s::*screamer-ext--print-warnings* 10))
+            
+(defmethod! paradigm--hide-warnings () 
+  :icon 642
+  (setf *backtrack-debug* NIL)
+  (setf *paradigm--print-warnings* NIL)
+  (setf s::*screamer-ext--print-warnings* NIL))
+
 (defmethod! fecho (input message &rest args)
   (if (and (null args) (search "~A" message))
       (apply #'format 
@@ -353,20 +375,13 @@ directly nested in a call to ASSERT!, are similarly transformed.
            (append (list *om-stream* (concatenate 'string message "~%")) args)))
   input)
 
-(defparameter *paradigm--print-warnings* nil)
-
-(defmethod! paradigm--print-warnings ()
-            (setf s::*echo-stream* om-lisp::*om-stream*)
-            (setf *paradigm--print-warnings* 10))
-            
-(defmethod! paradigm--hide-warnings ()
-            (setf s::*echo-stream* om-lisp::*om-stream*)
-            (setf *paradigm--print-warnings* nil))
-
 (defmethod! wecho (input message &rest args)
    (if *paradigm--print-warnings* 
        (apply #'fecho (append (list input message) args)))
    input)
+
+
+
 
 (defmethod! split-list (list)
   (s::split-list list))
@@ -572,7 +587,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod get-boxcallclass-fun ((self (eql '?booleanp))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'all-differentv))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?between))) 'screamerboxes)
-(defmethod get-boxcallclass-fun ((self (eql '?within))) 'screamerboxes)
+;(defmethod get-boxcallclass-fun ((self (eql '?within))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql 'within!))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?list<))) 'screamerboxes)
 (defmethod get-boxcallclass-fun ((self (eql '?list>))) 'screamerboxes)
@@ -640,7 +655,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
 (defmethod! ?min (x &rest xs) :icon 209 (apply #'s::?min (append (list x) xs)))
 (defmethod! all-differentv (x &rest xs) (apply #'s::all-differentv (append (list x) xs)))
 (defmethod! ?between (x min max) (s::?between x min max))
-(defmethod! ?within (x min max) (s::?within x min max))
+;(defmethod! ?within (x min max) (s::?within x min max))
 (defmethod! within! (x min max) (s::within! x min max))
 (defmethod! ?list< (x value) (s::?list< x value))
 (defmethod! ?list<= (x value) (s::?list<= x value))
@@ -757,13 +772,7 @@ directly nested in a call to ASSERT!, are similarly transformed.
       (apply #'sequenc (cdr (append (list x) xs)))
   x))
 
-(defun paradigm--format-timestamp (timestamp)
-  (multiple-value-bind
-      (second minute hour date month year day-of-week dst-p tz)
-      (decode-universal-time timestamp)
-    (concatenate 'string
-                 (format nil "~2,'0d:~2,'0d:~2,'0d ~d/~2,'0d"
-                         hour minute second month date))))
+(defun paradigm--format-timestamp (timestamp) (s::paradigm--format-timestamp timestamp))
 
 ;; mapprules.lisp
 ; (defmethod get-boxcallclass-fun ((self (eql 'mapprules))) 'screamerboxes)

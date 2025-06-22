@@ -1,5 +1,34 @@
 (in-package :SCREAMER)
 
+
+
+(defparameter *screamer-ext--print-warnings* NIL)
+(defparameter *screamer-ext--echo-stream* *standard-output*)
+
+(cl:defun paradigm--print-warnings ()
+  (setf *screamer-ext--echo-stream* *standard-output*)
+  (setf *screamer-ext--print-warnings* 10))
+            
+(cl:defun paradigm--hide-warnings () 
+  (setf *screamer-ext--print-warnings* NIL))
+
+(cl:defun fecho (input message &rest args)
+  (if (and (null args) (search "~A" message))
+      (apply #'format 
+             (append (list *screamer-ext--echo-stream* (concatenate 'string message "~%")) (list input)))
+    (apply #'format 
+           (append (list *screamer-ext--echo-stream* (concatenate 'string message "~%")) args)))
+  input)
+
+(cl:defun wecho (input message &rest args)
+   (if *screamer-ext--print-warnings* 
+       (apply #'fecho (append (list input message) args)))
+   input)
+
+
+
+
+
 (defvar *infinity* 1e38)
 
 (defun ?variables-in (x) (reverse (?variables-in-internal x '())))
@@ -200,13 +229,20 @@
    ;((or (null cut-after) (= 0 cut-after))
     ;(?solution input :force-fun force-fun :cost-fun cost-fun :terminate-fun terminate-fun :order-fun order-fun :valuation valuation :skip skip :cut-after (1- (- *infinity* skip)) :onmatch onmatch :collect-to collect-to :abort-after abort-after))
    (T
-    (let ((default-cost-fun #'domain-size)
+    (let ((default-cost-fun 
+           (let ((variables (flatt input))) 
+             #'(lambda (y)
+                 (let ((cost (position y variables)))
+                   (if cost
+                       cost
+                     0)))))
+                                
           (default-terminate-test #'(lambda (y) (declare (ignore y)) nil))
           (force-fun 
            (cond
             ((null force-fun) #'linear-force)
-            ((functionp force-fun) force-fun)     
-            ((nondeterministic-function? force-fun) force-fun)
+            ((or (functionp force-fun) 
+                 (nondeterministic-function? force-fun)) force-fun)
             ((find (symbol-name force-fun) '("LINEAR-FORCE" "LF" ) :test #'string=) #'linear-force)
             ((find (symbol-name force-fun) '("DIVIDE-AND-CONQUER-FORCE" "DACF") :test #'string=) #'divide-and-conquer-force)
             ((find (symbol-name force-fun) '("RANDOM-FORCE" "RANDOM") :test #'string=) #'random-force)
@@ -270,7 +306,9 @@
                 (last-count -1)
                 (count 0))
             (let ((match (solution input (reorder cost-fun terminate-fun order-fun force-fun))))
-                    (when abort? (fail))
+                    (when abort? 
+                      (wecho NIL "abort-timeout reached, aborting...")
+                      (fail))
                     (global (setf last-match match))
                     (global (setf count (1+ count)))
                     (when (< count skip) (fail))
@@ -286,13 +324,7 @@
             ))))))
               
 
-(defparameter *echo-stream* *standard-output*)
-
-(defun fecho (message &rest args)
-  (apply #'format 
-         (append (list *echo-stream* (concatenate 'string message "~%")) args)))
-
-(defun wecho (message &rest args)
+(defun fecho (input message &rest args)
   (apply #'format 
          (append (list *standard-output* (concatenate 'string message "~%")) args)))
 
@@ -1436,23 +1468,34 @@
                (append (reverse (cdr (reverse (car p))))
                        (cadr p))))))))
 
-(defun group-list-nondeterministic (list segmentation mode)
+(defun group-list-nondeterministic-internal (list segmentation mode)
   (cond
    ((null list) nil)
    ((not (some #'(lambda (x) (<= x (length list))) segmentation))
      (fail))
    (T
-    (let ((items (a-member-of segmentation)))
+    (let ((items (if (null mode)
+                     (a-member-of segmentation)
+                   (a-random-member-of segmentation))))
       (unless (<= items (length list))
         (fail))
       (let ((first (subseq list 0 (- (length list) items)))
             (last (subseq list (- (length list) items) (length list))))
         (if first
-            (append (group-list-nondeterministic first
+            (append (group-list-nondeterministic-internal first
                                                segmentation
                                                mode)
                   (list last))
-          (list last)))))))
+           (list last)))))))
+
+
+(defun group-list-nondeterministic (list segmentation mode)
+  (cond
+   ((null list) nil)
+   ((not (some #'(lambda (x) (<= x (length list))) segmentation))
+     (list list))
+   (T (group-list-nondeterministic-internal list segmentation mode))))
+   
   
 
 

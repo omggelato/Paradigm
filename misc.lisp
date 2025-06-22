@@ -29,6 +29,22 @@
         (format str (write-to-string input)))
       filename)))
 
+(in-package :SCREAMER)
+(defun midi-127template (template &optional map)
+  (let ((old (variables-in template)))
+    (multiple-value-bind (xs map2) (?template template map)
+      (let ((created (remove-if #'(lambda (x) (find x old)) (variables-in xs))))
+        (assert! (?integerp created))
+        (assert! (?between created 0 127))
+        (values xs map2)))))
+
+(in-package :OPENMUSIC)
+(defmethod get-boxcallclass-fun ((self (eql 'midi-127template))) 'screamerboxes)
+(defmethod! midi-127template (template &optional map) 
+  :icon 148
+  :numouts 2
+  (s::midi127-template template map))
+
 
 (in-package :OPENMUSIC)
 

@@ -165,21 +165,6 @@
 (defun ?between (input min max)
   (?between-internal (?xs-in input) min max))
 
-(defun ?within-internal (list min max)
-  (if list
-      (append
-       (list (cond
-              ((and min max)
-               (andv (>=v (car list) min) (<=v (car list) max)))
-              (min (>=v (car list) min))
-              (max (<=v (car list) max))
-              (T T)))
-       (?within-internal (cdr list) min max))
-    '(T)))
-
-(defun ?within (xs min max)
-  (apply #'andv (?within-internal (reverse (?xs-in xs)) min max)))
-
 (defun within!-internal (list min max)
   (if list
       (progn
